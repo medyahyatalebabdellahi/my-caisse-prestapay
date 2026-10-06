@@ -1,5 +1,5 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Application Logic v2.4 (CORRIGÉ)
+   MY CAISSE PRESTAPAY — Application Logic v2.4 (FINAL)
    ========================================================= */
 
 const SESSION = (() => {
@@ -136,12 +136,12 @@ function localApi(action, payload) {
             if (u && u.password === payload.password)
                 return { success: true, user: { username: payload.username.toUpperCase(),
                         role: u.role, permissions: u.permissions }, token: 'local_' + Date.now() };
-            return { success: false, error: 'Identifiants incorrects' };
+            return { success: false, error: 'Invalid credentials' };
         }
         case 'getCategories': return { success: true, categories: LocalDB.getCategories() };
         case 'addCategory': {
             const c = LocalDB.addCategory(payload.name, payload.kind);
-            return c ? { success: true, id: c.id } : { success: false, error: 'Existe déjà' };
+            return c ? { success: true, id: c.id } : { success: false, error: 'Already exists' };
         }
         case 'deleteCategory': LocalDB.deleteCategory(payload.id, payload.name); return { success: true };
         case 'getTypes': return { success: true, types: LocalDB.getTypes(payload.category_id) };
@@ -156,12 +156,12 @@ function localApi(action, payload) {
         case 'deleteMovement': LocalDB.deleteMovement(payload.id); return { success: true };
         case 'deleteAllMovements': {
             LocalDB.deleteAllMovements();
-            return { success: true, deleted: 0, message: 'Tous supprimés' };
+            return { success: true, deleted: 0, message: 'All deleted' };
         }
         case 'getSetting': return { success: true, value: LocalDB.getOpeningBalance() };
         case 'setSetting': LocalDB.setOpeningBalance(payload.value); return { success: true };
         case 'getUsers': return { success: true, users: [] };
-        default: return { success: false, error: 'Action inconnue' };
+        default: return { success: false, error: 'Unknown action' };
     }
 }
 
@@ -171,7 +171,7 @@ function localApi(action, payload) {
 function renderHeader() {
     document.getElementById('userName').textContent = SESSION.username;
     document.getElementById('userRole').textContent =
-        SESSION.role === 'admin' ? 'Administrateur' : 'Utilisateur';
+        SESSION.role === 'admin' ? 'Administrator' : 'User';
     document.getElementById('userAvatar').textContent = SESSION.username.charAt(0).toUpperCase();
     if (!hasPerm('manage_users') && SESSION.role !== 'admin')
         document.querySelectorAll('[data-admin-only]').forEach(el => el.style.display = 'none');
@@ -182,7 +182,7 @@ function renderHeader() {
 }
 
 /* =========================================================
-   BANNIÈRE
+   STATS BANNER
    ========================================================= */
 async function refreshBanner() {
     const [setRes, mvtRes] = await Promise.all([
@@ -228,7 +228,7 @@ async function refreshTypeSelect() {
     const types = res.types || [];
     const typeSel = document.getElementById('selType');
     typeSel.innerHTML = '';
-    if (!types.length) { typeSel.innerHTML = '<option value="">(aucun type)</option>'; return; }
+    if (!types.length) { typeSel.innerHTML = '<option value="">(no type)</option>'; return; }
     types.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id; opt.textContent = t.name; opt.dataset.name = t.name;
@@ -237,7 +237,7 @@ async function refreshTypeSelect() {
 }
 
 /* =========================================================
-   MOUVEMENTS
+   MOVEMENTS
    ========================================================= */
 let CURRENT_EDIT_ID = null;
 
@@ -282,7 +282,7 @@ async function refreshMovements() {
             </td>`;
         tbody.appendChild(tr);
     });
-    document.getElementById('movCount').textContent = list.length + ' ligne(s)';
+    document.getElementById('movCount').textContent = list.length + ' row(s)';
     refreshBanner();
 }
 
@@ -293,8 +293,8 @@ function clearForm() {
     document.getElementById('inpAmount').value = '';
     document.getElementById('inpFrais').value = '0';
     document.getElementById('inpDate').value = todayISO();
-    document.getElementById('formTitle').textContent = 'Nouveau Mouvement';
-    document.getElementById('btnSave').textContent = '➕ Ajouter';
+    document.getElementById('formTitle').textContent = 'New Movement';
+    document.getElementById('btnSave').textContent = '➕ Add';
 }
 
 async function saveMovement() {
@@ -309,8 +309,8 @@ async function saveMovement() {
     const typeName = typeSel.options[typeSel.selectedIndex]?.dataset?.name || '';
     const type   = document.querySelector('input[name="opType"]:checked').value;
 
-    if (!isoDate) { toast('⚠️ Sélectionnez une date', 'warn'); return; }
-    if (amount <= 0) { toast('⚠️ Entrez un montant > 0', 'warn'); return; }
+    if (!isoDate) { toast('⚠️ Select a date', 'warn'); return; }
+    if (amount <= 0) { toast('⚠️ Enter amount > 0', 'warn'); return; }
 
     const mvt = {
         date: isoDate, transaction_no: trNo, category: catName, type: typeName,
@@ -322,10 +322,10 @@ async function saveMovement() {
     if (CURRENT_EDIT_ID) {
         mvt.id = CURRENT_EDIT_ID;
         await apiCall('updateMovement', mvt);
-        toast('✅ Mouvement modifié.', 'success');
+        toast('✅ Movement updated.', 'success');
     } else {
         await apiCall('addMovement', mvt);
-        toast('✅ Mouvement ajouté.', 'success');
+        toast('✅ Movement added.', 'success');
     }
     clearForm(); refreshMovements();
 }
@@ -351,13 +351,13 @@ async function editMovement(id) {
     const typeSel = document.getElementById('selType');
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
-    document.getElementById('formTitle').textContent = 'Modifier le Mouvement';
-    document.getElementById('btnSave').textContent = '💾 Enregistrer';
+    document.getElementById('formTitle').textContent = 'Edit Movement';
+    document.getElementById('btnSave').textContent = '💾 Save';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* =========================================================
-   CATÉGORIES & TYPES
+   CATEGORIES & TYPES
    ========================================================= */
 async function refreshManageTables() {
     const catRes = await apiCall('getCategories');
@@ -411,20 +411,20 @@ async function refreshTypesTable() {
 async function addCategory() {
     const name = document.getElementById('newCatName').value.trim();
     const kind = document.getElementById('newCatKind').value;
-    if (!name) { toast('⚠️ Entrez le nom', 'warn'); return; }
+    if (!name) { toast('⚠️ Enter name', 'warn'); return; }
     const res = await apiCall('addCategory', { name, kind });
     if (res.success) {
-        toast('✅ Catégorie ajoutée', 'success');
+        toast('✅ Category added', 'success');
         document.getElementById('newCatName').value = '';
         refreshManageTables(); refreshCategorySelect();
-    } else toast('❌ ' + (res.error || 'Échec'), 'error');
+    } else toast('❌ ' + (res.error || 'Failed'), 'error');
 }
 
 async function deleteCategory(id, name) {
-    if (!confirm(`Supprimer la catégorie "${name}" ?`)) return;
+    if (!confirm(`Delete category "${name}" ?`)) return;
     const res = await apiCall('deleteCategory', { id, name });
     if (res.success) {
-        toast('✅ Supprimée', 'success');
+        toast('✅ Deleted', 'success');
         refreshManageTables(); refreshCategorySelect();
     }
 }
@@ -432,29 +432,29 @@ async function deleteCategory(id, name) {
 async function addType() {
     const catId = document.getElementById('typeParentCat').value;
     const name  = document.getElementById('newTypeName').value.trim();
-    if (!name) { toast('⚠️ Entrez le nom', 'warn'); return; }
+    if (!name) { toast('⚠️ Enter name', 'warn'); return; }
     const res = await apiCall('addType', { category_id: catId, name });
     if (res.success) {
-        toast('✅ Type ajouté', 'success');
+        toast('✅ Type added', 'success');
         document.getElementById('newTypeName').value = '';
         refreshTypesTable();
-    } else toast('❌ ' + (res.error || 'Échec'), 'error');
+    } else toast('❌ ' + (res.error || 'Failed'), 'error');
 }
 
 async function deleteType(id) {
-    if (!confirm('Supprimer ce type ?')) return;
+    if (!confirm('Delete this type?')) return;
     const res = await apiCall('deleteType', { id });
-    if (res.success) { toast('✅ Supprimé', 'success'); refreshTypesTable(); }
+    if (res.success) { toast('✅ Deleted', 'success'); refreshTypesTable(); }
 }
 
 /* =========================================================
-   RAPPORT MENSUEL
+   MONTHLY REPORT
    ========================================================= */
 let CURRENT_REPORT = null;
 
 async function generateReport() {
     const month = document.getElementById('reportMonth').value;
-    if (!month) { toast('⚠️ Sélectionnez un mois', 'warn'); return; }
+    if (!month) { toast('⚠️ Select a month', 'warn'); return; }
     const selectedCats = Array.from(document.getElementById('reportCategories')
         .selectedOptions).map(o => o.value);
 
@@ -473,8 +473,8 @@ async function generateReport() {
     const grouped = {};
     let totalDep = 0, totalRec = 0, totalFrais = 0;
     finalList.forEach(m => {
-        const cat = m.category || 'SANS CATÉGORIE';
-        const typ = m.type || 'SANS TYPE';
+        const cat = m.category || 'NO CATEGORY';
+        const typ = m.type || 'NO TYPE';
         if (!grouped[cat]) grouped[cat] = { total: 0, types: {} };
         if (!grouped[cat].types[typ]) grouped[cat].types[typ] = 0;
         grouped[cat].types[typ] += Number(m.depense || 0);
@@ -493,43 +493,43 @@ async function generateReport() {
 }
 
 function renderReport(r) {
-    const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                        'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const monthNames = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
     const [y, m] = r.month.split('-');
     const monthLabel = monthNames[parseInt(m)-1] + ' ' + y;
 
     let html = `
     <div class="card" style="border:2px solid var(--violet)">
         <div class="card-header" style="background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff;font-size:16px">
-            DÉPENSE EXPLOITATION PRESTAPAY — ${monthLabel.toUpperCase()}
+            PRESTAPAY OPERATING EXPENSES — ${monthLabel.toUpperCase()}
         </div>
         <div class="card-body">
             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">
                 <div style="background:var(--violet-light);padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:var(--blue-dark)">SOLDE DÉBUT</div>
+                    <div style="font-size:11px;font-weight:700;color:var(--blue-dark)">OPENING BALANCE</div>
                     <div style="font-size:16px;font-weight:800;color:var(--violet-dark)">${fmtMoney(r.opening)}</div>
                 </div>
                 <div style="background:#DCFCE7;padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:#166534">RECETTES</div>
+                    <div style="font-size:11px;font-weight:700;color:#166534">INCOME</div>
                     <div style="font-size:16px;font-weight:800;color:#059669">${fmtMoney(r.totalRec)}</div>
                 </div>
                 <div style="background:#FEE2E2;padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:#991B1B">DÉPENSES</div>
+                    <div style="font-size:11px;font-weight:700;color:#991B1B">EXPENSES</div>
                     <div style="font-size:16px;font-weight:800;color:#DC2626">${fmtMoney(r.totalDep)}</div>
                 </div>
                 <div style="background:#FFEDD5;padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:#9A3412">FRAIS</div>
+                    <div style="font-size:11px;font-weight:700;color:#9A3412">FEES</div>
                     <div style="font-size:16px;font-weight:800;color:#D97706">${fmtMoney(r.totalFrais)}</div>
                 </div>
                 <div style="background:linear-gradient(135deg,#7C3AED,#6D28D9);padding:12px;border-radius:10px;text-align:center;color:#fff">
-                    <div style="font-size:11px;font-weight:700">SOLDE FIN</div>
+                    <div style="font-size:11px;font-weight:700">CLOSING BALANCE</div>
                     <div style="font-size:16px;font-weight:800">${fmtMoney(r.closing)}</div>
                 </div>
             </div>
             <table class="data" style="font-size:13px">
                 <thead><tr>
-                    <th>CATÉGORIE</th><th>TYPE</th>
-                    <th style="text-align:right">MONTANT</th>
+                    <th>CATEGORY</th><th>TYPE</th>
+                    <th style="text-align:right">AMOUNT</th>
                 </tr></thead><tbody>`;
 
     Object.keys(r.grouped).sort().forEach(cat => {
@@ -547,7 +547,7 @@ function renderReport(r) {
     html += `</tbody>
             <tfoot>
                 <tr style="background:linear-gradient(135deg,#1E3A8A,#0F172A);color:#fff;font-weight:800;font-size:14px">
-                    <td colspan="2">TOTAL DÉPENSES</td>
+                    <td colspan="2">TOTAL EXPENSES</td>
                     <td style="text-align:right">${fmtMoney(r.totalDep)}</td>
                 </tr>
             </tfoot></table>
@@ -557,40 +557,40 @@ function renderReport(r) {
 }
 
 async function exportReportExcel() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
+    if (!CURRENT_REPORT) { toast('⚠️ Generate first', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
     const data = [
         ['MY CAISSE PRESTAPAY'],
-        ['DÉPENSE EXPLOITATION PRESTAPAY — ' + m + '-' + y],
+        ['PRESTAPAY OPERATING EXPENSES — ' + m + '-' + y],
         [],
-        ['Solde début', r.opening],
-        ['Total Recettes', r.totalRec],
-        ['Total Dépenses', r.totalDep],
-        ['Total Frais', r.totalFrais],
-        ['Solde fin', r.closing],
+        ['Opening Balance', r.opening],
+        ['Total Income', r.totalRec],
+        ['Total Expenses', r.totalDep],
+        ['Total Fees', r.totalFrais],
+        ['Closing Balance', r.closing],
         [],
-        ['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']
+        ['CATEGORY', 'TYPE', 'AMOUNT (MRU)']
     ];
     Object.keys(r.grouped).sort().forEach(cat => {
         const g = r.grouped[cat];
         data.push([cat, '', g.total]);
         Object.keys(g.types).sort().forEach(typ => data.push(['  ' + cat, typ, g.types[typ]]));
     });
-    data.push(['', 'TOTAL DÉPENSES', r.totalDep]);
+    data.push(['', 'TOTAL EXPENSES', r.totalDep]);
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Rapport');
-    XLSX.writeFile(wb, `Rapport_${m}-${y}.xlsx`);
-    toast('✅ Excel exporté', 'success');
+    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+    XLSX.writeFile(wb, `Report_${m}-${y}.xlsx`);
+    toast('✅ Excel exported', 'success');
 }
 
 async function exportReportPDF() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
+    if (!CURRENT_REPORT) { toast('⚠️ Generate first', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
-    const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin',
-                        'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+    const monthNames = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
     const monthLabel = monthNames[parseInt(m)-1] + ' ' + y;
 
     const { jsPDF } = window.jspdf;
@@ -601,15 +601,15 @@ async function exportReportPDF() {
     doc.setFontSize(18); doc.setFont(undefined, 'bold');
     doc.text('MY CAISSE PRESTAPAY', 105, 13, { align:'center' });
     doc.setFontSize(11); doc.setFont(undefined, 'normal');
-    doc.text('DÉPENSE EXPLOITATION PRESTAPAY — ' + monthLabel.toUpperCase(), 105, 22, { align:'center' });
+    doc.text('PRESTAPAY OPERATING EXPENSES — ' + monthLabel.toUpperCase(), 105, 22, { align:'center' });
 
     doc.setTextColor(30,58,138); doc.setFontSize(10);
     let y0 = 42;
-    doc.text('Solde début : ' + fmtMoney(r.opening), 15, y0);
-    doc.text('Total Recettes : ' + fmtMoney(r.totalRec), 15, y0 + 6);
-    doc.text('Total Dépenses : ' + fmtMoney(r.totalDep), 15, y0 + 12);
-    doc.text('Total Frais : ' + fmtMoney(r.totalFrais), 15, y0 + 18);
-    doc.text('Solde fin : ' + fmtMoney(r.closing), 15, y0 + 24);
+    doc.text('Opening Balance : ' + fmtMoney(r.opening), 15, y0);
+    doc.text('Total Income : ' + fmtMoney(r.totalRec), 15, y0 + 6);
+    doc.text('Total Expenses : ' + fmtMoney(r.totalDep), 15, y0 + 12);
+    doc.text('Total Fees : ' + fmtMoney(r.totalFrais), 15, y0 + 18);
+    doc.text('Closing Balance : ' + fmtMoney(r.closing), 15, y0 + 24);
 
     const rows = [];
     Object.keys(r.grouped).sort().forEach(cat => {
@@ -622,30 +622,30 @@ async function exportReportPDF() {
             rows.push(['  — ' + typ, '', { content: fmtMoney(g.types[typ]), styles: { halign:'right' } }]);
         });
     });
-    rows.push([{ content: 'TOTAL DÉPENSES', colSpan: 2,
+    rows.push([{ content: 'TOTAL EXPENSES', colSpan: 2,
                  styles: { fontStyle:'bold', fillColor:[30,58,138], textColor:[255,255,255] } },
                { content: fmtMoney(r.totalDep),
                  styles: { halign:'right', fontStyle:'bold', fillColor:[30,58,138], textColor:[255,255,255] } }]);
     doc.autoTable({
         startY: y0 + 32,
-        head: [['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']],
+        head: [['CATEGORY', 'TYPE', 'AMOUNT (MRU)']],
         body: rows,
         styles: { fontSize: 9, cellPadding: 3 },
         headStyles: { fillColor: [124,58,237], textColor: 255, fontStyle:'bold' },
         theme: 'grid'
     });
-    doc.save(`Rapport_${m}_${y}.pdf`);
-    toast('✅ PDF exporté', 'success');
+    doc.save(`Report_${m}_${y}.pdf`);
+    toast('✅ PDF exported', 'success');
 }
 
 async function saveClosingAsOpening() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
-    if (!confirm(`Enregistrer ${fmtMoney(CURRENT_REPORT.closing)} comme nouveau solde début ?`)) return;
+    if (!CURRENT_REPORT) { toast('⚠️ Generate first', 'warn'); return; }
+    if (!confirm(`Save ${fmtMoney(CURRENT_REPORT.closing)} as new opening balance?`)) return;
     const res = await apiCall('setSetting', {
         key: 'opening_balance', value: CURRENT_REPORT.closing
     });
     if (res.success) {
-        toast('✅ Solde début mis à jour', 'success');
+        toast('✅ Opening balance updated', 'success');
         refreshBanner(); refreshSettings();
     }
 }
@@ -678,10 +678,10 @@ async function exportData(format) {
     if (format === 'excel') {
         const data = [
             ['MY CAISSE PRESTAPAY'],
-            ['Période', `${fromFR} → ${toFR}`],
-            ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
+            ['Period', `${fromFR} → ${toFR}`],
+            ['Opening Balance', opening, 'Income', tRec, 'Expenses', tDep, 'Fees', tFrais, 'Closing Balance', finalBal],
             [],
-            ['Date','N° Transaction','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']
+            ['Date','Transaction #','Category','Type','Description','Income','Expenses','Fees','Balance']
         ];
         let running = opening;
         movements.forEach(m => {
@@ -691,11 +691,11 @@ async function exportData(format) {
         });
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
+        XLSX.utils.book_append_sheet(wb, ws, 'Movements');
         XLSX.writeFile(wb, `MyCaisse_${stamp}.xlsx`);
-        toast('✅ Excel exporté', 'success');
+        toast('✅ Excel exported', 'success');
     } else if (format === 'csv') {
-        let csv = 'Date,N° Transaction,Catégorie,Type,Description,Recettes,Dépenses,Frais,Solde\n';
+        let csv = 'Date,Transaction #,Category,Type,Description,Income,Expenses,Fees,Balance\n';
         let running = opening;
         movements.forEach(m => {
             running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
@@ -704,7 +704,7 @@ async function exportData(format) {
                     .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
         });
         downloadBlob(csv, `MyCaisse_${stamp}.csv`, 'text/csv;charset=utf-8');
-        toast('✅ CSV exporté', 'success');
+        toast('✅ CSV exported', 'success');
     } else if (format === 'pdf') {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -714,17 +714,17 @@ async function exportData(format) {
         doc.setFontSize(16); doc.setFont(undefined,'bold');
         doc.text('MY CAISSE PRESTAPAY', 148, 12, { align:'center' });
         doc.setFontSize(9); doc.setFont(undefined,'normal');
-        doc.text(`Du ${fromFR} au ${toFR}`, 148, 18, { align:'center' });
+        doc.text(`From ${fromFR} to ${toFR}`, 148, 18, { align:'center' });
         doc.setTextColor(30,58,138); doc.setFontSize(10);
-        doc.text(`Solde début: ${fmtMoney(opening)}`, 15, 30);
-        doc.text(`Recettes: ${fmtMoney(tRec)}`, 75, 30);
-        doc.text(`Dépenses: ${fmtMoney(tDep)}`, 135, 30);
-        doc.text(`Frais: ${fmtMoney(tFrais)}`, 190, 30);
-        doc.text(`Solde fin: ${fmtMoney(finalBal)}`, 245, 30);
+        doc.text(`Opening Balance: ${fmtMoney(opening)}`, 15, 30);
+        doc.text(`Income: ${fmtMoney(tRec)}`, 75, 30);
+        doc.text(`Expenses: ${fmtMoney(tDep)}`, 135, 30);
+        doc.text(`Fees: ${fmtMoney(tFrais)}`, 190, 30);
+        doc.text(`Closing Balance: ${fmtMoney(finalBal)}`, 245, 30);
         let running = opening;
         doc.autoTable({
             startY: 36,
-            head: [['Date','N°','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']],
+            head: [['Date','#','Category','Type','Description','Income','Expenses','Fees','Balance']],
             body: movements.map(m => {
                 running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
                 return [fmtDate(m.date), m.transaction_no||'', m.category||'',
@@ -741,7 +741,7 @@ async function exportData(format) {
             }
         });
         doc.save(`MyCaisse_${stamp}.pdf`);
-        toast('✅ PDF exporté', 'success');
+        toast('✅ PDF exported', 'success');
     } else if (format === 'word') {
         let rows = '';
         let running = opening;
@@ -765,20 +765,20 @@ async function exportData(format) {
             td { border:1px solid #ccc; padding:4px; }
         </style></head><body>
         <h1>MY CAISSE PRESTAPAY</h1>
-        <p style="text-align:center">Du ${fromFR} au ${toFR}</p>
-        <p><b>Solde début:</b> ${fmtMoney(opening)} |
-           <b>Recettes:</b> ${fmtMoney(tRec)} |
-           <b>Dépenses:</b> ${fmtMoney(tDep)} |
-           <b>Frais:</b> ${fmtMoney(tFrais)} |
-           <b>Solde fin:</b> ${fmtMoney(finalBal)}</p>
+        <p style="text-align:center">From ${fromFR} to ${toFR}</p>
+        <p><b>Opening Balance:</b> ${fmtMoney(opening)} |
+           <b>Income:</b> ${fmtMoney(tRec)} |
+           <b>Expenses:</b> ${fmtMoney(tDep)} |
+           <b>Fees:</b> ${fmtMoney(tFrais)} |
+           <b>Closing Balance:</b> ${fmtMoney(finalBal)}</p>
         <table><thead><tr>
-            <th>Date</th><th>N°</th><th>Catégorie</th><th>Type</th>
-            <th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th>
+            <th>Date</th><th>#</th><th>Category</th><th>Type</th>
+            <th>Description</th><th>Income</th><th>Expenses</th><th>Fees</th><th>Balance</th>
         </tr></thead><tbody>${rows}</tbody></table>
         </body></html>`;
         downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }),
                      `MyCaisse_${stamp}.doc`);
-        toast('✅ Word exporté', 'success');
+        toast('✅ Word exported', 'success');
     }
 }
 
@@ -791,7 +791,7 @@ function downloadBlob(data, filename, mime) {
 }
 
 /* =========================================================
-   IMPORT
+   IMPORT — FILE HANDLER
    ========================================================= */
 function handleUpload(file) {
     if (!file) return;
@@ -816,12 +816,15 @@ function handleUpload(file) {
         r.onload = async (e) => { try { await importPDF(e.target.result); }
             catch (err) { toast('❌ PDF: ' + err.message, 'error'); } };
         r.readAsArrayBuffer(file);
-    } else toast('⚠️ CSV, JSON, Excel, PDF seulement', 'warn');
+    } else toast('⚠️ CSV, JSON, Excel, PDF only', 'warn');
 }
 
+/* =========================================================
+   IMPORT CSV
+   ========================================================= */
 async function importCSV(text) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) { toast('⚠️ CSV vide', 'warn'); return; }
+    if (lines.length < 2) { toast('⚠️ Empty CSV', 'warn'); return; }
     const delim = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
     const splitLine = (line) => {
         const result = []; let cur = '', inQ = false;
@@ -837,12 +840,12 @@ async function importCSV(text) {
     const headers = splitLine(lines[0]).map(h => h.toLowerCase());
     const idxDate = headers.findIndex(h => h.includes('date'));
     const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
-    const idxCat  = headers.findIndex(h => h.includes('catégor'));
+    const idxCat  = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
     const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
     const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
-    const idxRec  = headers.findIndex(h => h.includes('recette'));
-    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense'));
-    const idxFrais = headers.findIndex(h => h.includes('frais'));
+    const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
+    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+    const idxFrais = headers.findIndex(h => h.includes('frais') || h.includes('fee'));
 
     let imp = 0, skip = 0;
     for (let i = 1; i < lines.length; i++) {
@@ -865,84 +868,223 @@ async function importCSV(text) {
         });
         imp++;
     }
-    toast(`✅ Importés : ${imp} | Ignorés : ${skip}`, 'success');
+    toast(`✅ Imported: ${imp} | Skipped: ${skip}`, 'success');
     refreshMovements(); refreshBanner();
 }
 
+/* =========================================================
+   IMPORT EXCEL — FINAL VERSION
+   ========================================================= */
 async function importExcel(arrayBuffer) {
-    const data = new Uint8Array(arrayBuffer);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-    if (rows.length < 2) { toast('⚠️ Excel vide', 'warn'); return; }
-    let headerRow = 0;
-    for (let i = 0; i < Math.min(rows.length, 15); i++) {
-        const joined = rows[i].map(c => String(c).toLowerCase()).join('|');
-        if (joined.includes('date') && (joined.includes('transaction') || joined.includes('catégor'))) {
-            headerRow = i; break;
+    try {
+        if (!window.XLSX) {
+            toast('❌ Excel library not loaded', 'error');
+            return;
+        }
+
+        const data = new Uint8Array(arrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '', raw: false });
+
+        if (rows.length < 2) {
+            toast('⚠️ Empty Excel file', 'warn');
+            return;
+        }
+
+        // Find header row (may be in first 15 rows)
+        let headerRow = 0;
+        for (let i = 0; i < Math.min(rows.length, 15); i++) {
+            const joined = (rows[i] || []).map(c => String(c).toLowerCase()).join('|');
+            if (joined.includes('date') && (joined.includes('transaction') || joined.includes('catégor') || joined.includes('description'))) {
+                headerRow = i;
+                break;
+            }
+        }
+
+        const headers = (rows[headerRow] || []).map(h => String(h).toLowerCase().trim());
+
+        const idxDate  = headers.findIndex(h => h.includes('date'));
+        const idxTrNo  = headers.findIndex(h => h.includes('transaction') || h.includes('n°') || h.includes('num'));
+        const idxCat   = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
+        const idxType  = headers.findIndex(h => h === 'type' || h.includes('type'));
+        const idxDesc  = headers.findIndex(h => h.includes('description') || h.includes('libell') || h.includes('desc'));
+        const idxRec   = headers.findIndex(h => h.includes('recette') || h.includes('income') || h.includes('entrée'));
+        const idxDep   = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense') || h.includes('sortie'));
+        const idxFrais = headers.findIndex(h => h.includes('frais') || h.includes('fee') || h.includes('commission'));
+
+        if (idxDate < 0) {
+            toast('⚠️ Column "Date" not found', 'warn');
+            return;
+        }
+        if (idxRec < 0 && idxDep < 0) {
+            toast('⚠️ Columns "Income" or "Expenses" not found', 'warn');
+            return;
+        }
+
+        let imp = 0, skip = 0;
+
+        for (let i = headerRow + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.length === 0) continue;
+
+            const first = String(row[0] || '').toLowerCase().trim();
+            if (!first ||
+                first.includes('total') ||
+                first.includes('solde début') ||
+                first.includes('solde fin') ||
+                first.includes('sous-total')) {
+                continue;
+            }
+
+            const dateStr = parseDate(row[idxDate]);
+            if (!dateStr) { skip++; continue; }
+
+            const r = idxRec   >= 0 ? parseAmount(row[idxRec])   : 0;
+            const d = idxDep   >= 0 ? parseAmount(row[idxDep])   : 0;
+            const f = idxFrais >= 0 ? parseAmount(row[idxFrais]) : 0;
+
+            if (r === 0 && d === 0) { skip++; continue; }
+
+            const split = splitCategoryType(
+                idxCat  >= 0 ? row[idxCat]  : '',
+                idxType >= 0 ? row[idxType] : '',
+                idxDesc >= 0 ? row[idxDesc] : ''
+            );
+
+            const res = await apiCall('addMovement', {
+                date: dateStr,
+                transaction_no: idxTrNo >= 0 ? String(row[idxTrNo] || '').trim() : '',
+                category: split.category,
+                type: split.type,
+                description: split.description,
+                recette: r,
+                depense: d,
+                frais: f
+            });
+
+            if (res && res.success) imp++;
+            else skip++;
+        }
+
+        if (imp === 0) {
+            toast(`⚠️ No rows imported (${skip} skipped)`, 'warn');
+        } else {
+            toast(`✅ Imported: ${imp} | Skipped: ${skip}`, 'success');
+            refreshMovements();
+            refreshBanner();
+        }
+
+    } catch (err) {
+        console.error('Excel Error:', err);
+        toast('❌ Excel error: ' + (err.message || 'unknown'), 'error');
+    }
+}
+
+/* =========================================================
+   IMPORT PDF — FINAL VERSION (Multi-CDN Fallback)
+   ========================================================= */
+async function importPDF(arrayBuffer) {
+    if (!window.pdfjsLib) {
+        toast('❌ PDF.js not loaded. Check your connection.', 'error');
+        console.error('pdfjsLib not found');
+        return;
+    }
+
+    const workerCDNs = [
+        'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+        'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+    ];
+
+    let workerUrl = null;
+    for (const url of workerCDNs) {
+        try {
+            const r = await fetch(url, { method: 'HEAD', mode: 'cors', cache: 'no-store' });
+            if (r.ok) {
+                workerUrl = url;
+                console.log('✅ PDF Worker:', url);
+                break;
+            }
+        } catch (e) {
+            console.warn('❌ CDN failed:', url, e.message);
         }
     }
-    const headers = rows[headerRow].map(h => String(h).toLowerCase().trim());
-    const idxDate = headers.findIndex(h => h.includes('date'));
-    const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
-    const idxCat  = headers.findIndex(h => h.includes('catégor'));
-    const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
-    const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
-    const idxRec  = headers.findIndex(h => h.includes('recette'));
-    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense'));
-    const idxFrais = headers.findIndex(h => h.includes('frais'));
 
-    let imp = 0, skip = 0;
-    for (let i = headerRow + 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row || row.length === 0) continue;
-        const first = String(row[0] || '').toLowerCase();
-        if (first.includes('total') || first.includes('solde début') || first.includes('solde fin')) continue;
-        const dateStr = parseDate(row[idxDate]);
-        if (!dateStr) { skip++; continue; }
-        const r = idxRec >= 0 ? parseAmount(row[idxRec]) : 0;
-        const d = idxDep >= 0 ? parseAmount(row[idxDep]) : 0;
-        const f = idxFrais >= 0 ? parseAmount(row[idxFrais]) : 0;
-        if (r === 0 && d === 0) { skip++; continue; }
-        const split = splitCategoryType(
-            idxCat  >= 0 ? row[idxCat]  : '',
-            idxType >= 0 ? row[idxType] : '',
-            idxDesc >= 0 ? row[idxDesc] : '');
-        await apiCall('addMovement', {
-            date: dateStr,
-            transaction_no: idxTrNo >= 0 ? String(row[idxTrNo] || '') : '',
-            category: split.category, type: split.type, description: split.description,
-            recette: r, depense: d, frais: f
+    if (!workerUrl) {
+        toast('❌ PDF Worker unavailable. Check your connection.', 'error');
+        return;
+    }
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+
+    try {
+        const loadingTask = pdfjsLib.getDocument({
+            data: arrayBuffer,
+            useSystemFonts: true,
+            disableAutoFetch: true,
+            disableStream: true
         });
-        imp++;
+        const pdf = await loadingTask.promise;
+        toast(`📄 Reading PDF (${pdf.numPages} pages)...`, 'warn');
+
+        let fullText = '';
+        for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
+            const content = await page.getTextContent();
+            const pageText = content.items
+                .map(i => i.str)
+                .join(' ')
+                .replace(/\s+/g, ' ');
+            fullText += pageText + '\n';
+        }
+
+        const movements = parsePDFMovements(fullText);
+
+        if (!movements.length) {
+            toast('⚠️ No movements found. PDF may be a scanned image.', 'warn');
+            return;
+        }
+
+        let imp = 0;
+        for (const m of movements) {
+            const res = await apiCall('addMovement', m);
+            if (res && res.success) imp++;
+        }
+
+        toast(`✅ ${imp} movement(s) imported from PDF`, 'success');
+        refreshMovements();
+        refreshBanner();
+
+    } catch (err) {
+        console.error('PDF Error:', err);
+        toast('❌ PDF error: ' + (err.message || 'unknown'), 'error');
     }
-    toast(`✅ Importés : ${imp} | Ignorés : ${skip}`, 'success');
-    refreshMovements(); refreshBanner();
 }
 
-async function importPDF(arrayBuffer) {
-    if (!window.pdfjsLib) { toast('❌ PDF.js non chargé', 'error'); return; }
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    toast(`📄 Lecture PDF (${pdf.numPages} pages)...`, 'warn');
-    let fullText = '';
-    for (let p = 1; p <= pdf.numPages; p++) {
-        const page = await pdf.getPage(p);
-        const content = await page.getTextContent();
-        fullText += content.items.map(i => i.str).join(' ') + '\n';
+/* =========================================================
+   IMPORT JSON
+   ========================================================= */
+async function importJSON(text) {
+    const data = JSON.parse(text);
+    if (Array.isArray(data)) {
+        for (const m of data) {
+            const split = splitCategoryType(m.category, m.type, m.description);
+            await apiCall('addMovement', {
+                date: m.date, transaction_no: m.transaction_no || '',
+                category: split.category, type: split.type, description: split.description,
+                recette: Number(m.recette) || 0, depense: Number(m.depense) || 0,
+                frais: Number(m.frais) || 0
+            });
+        }
+        toast(`✅ ${data.length} imported`, 'success');
+        refreshMovements();
     }
-    const movements = parsePDFMovements(fullText);
-    if (!movements.length) { toast('⚠️ Aucun mouvement', 'warn'); return; }
-    let imp = 0;
-    for (const m of movements) {
-        const res = await apiCall('addMovement', m);
-        if (res.success) imp++;
-    }
-    toast(`✅ ${imp} importé(s) du PDF`, 'success');
-    refreshMovements(); refreshBanner();
 }
 
+/* =========================================================
+   PARSERS
+   ========================================================= */
 function parsePDFMovements(text) {
     const movements = [];
     const lines = text.split(/(?=\d{2}\/\d{2}\/\d{4})/g);
@@ -962,7 +1104,7 @@ function parsePDFMovements(text) {
         if (amount <= 0) continue;
         let desc = rest.replace(/[\d\s]+[.,]\d{2}/g, ' ').replace(/\s+/g, ' ').trim();
         const split = splitCategoryType('', '', desc);
-        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(split.category);
+        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU|INCOME/i.test(split.category);
         movements.push({
             date: isoDate, transaction_no: trNo,
             category: split.category, type: split.type, description: split.description,
@@ -970,23 +1112,6 @@ function parsePDFMovements(text) {
         });
     }
     return movements;
-}
-
-async function importJSON(text) {
-    const data = JSON.parse(text);
-    if (Array.isArray(data)) {
-        for (const m of data) {
-            const split = splitCategoryType(m.category, m.type, m.description);
-            await apiCall('addMovement', {
-                date: m.date, transaction_no: m.transaction_no || '',
-                category: split.category, type: split.type, description: split.description,
-                recette: Number(m.recette) || 0, depense: Number(m.depense) || 0,
-                frais: Number(m.frais) || 0
-            });
-        }
-        toast(`✅ ${data.length} importé(s)`, 'success');
-        refreshMovements();
-    }
 }
 
 function splitCategoryType(rc, rt, rd) {
@@ -1049,13 +1174,13 @@ function parseAmount(v) {
 }
 
 /* =========================================================
-   UTILISATEURS
+   USERS
    ========================================================= */
 async function refreshUsersTable() {
     const tbody = document.getElementById('usersTbody');
     if (!tbody) return;
     const res = await apiCall('getUsers');
-    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6">Admin uniquement</td></tr>'; return; }
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6">Admin only</td></tr>'; return; }
     tbody.innerHTML = '';
     (res.users || []).forEach(u => {
         const tr = document.createElement('tr');
@@ -1064,7 +1189,7 @@ async function refreshUsersTable() {
             <td><strong>${u.username}</strong></td>
             <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role}</span></td>
             <td>${(u.permissions||[]).join(', ')}</td>
-            <td><span class="badge ${u.active?'badge-active':'badge-inactive'}">${u.active?'Actif':'Inactif'}</span></td>
+            <td><span class="badge ${u.active?'badge-active':'badge-inactive'}">${u.active?'Active':'Inactive'}</span></td>
             <td>
                 <button class="btn btn-gray" data-edit-user="${u.id}">✏️</button>
                 <button class="btn btn-danger" data-del-user="${u.id}">🗑</button>
@@ -1076,7 +1201,7 @@ async function refreshUsersTable() {
 function openUserModal(user) {
     const isNew = !user;
     user = user || { username:'', password:'', role:'user', permissions:['view'], active:true };
-    document.getElementById('userModalTitle').textContent = isNew ? 'Nouvel Utilisateur' : 'Modifier Utilisateur';
+    document.getElementById('userModalTitle').textContent = isNew ? 'New User' : 'Edit User';
     document.getElementById('inpUserName').value = user.username;
     document.getElementById('inpUserPass').value = user.password || '';
     document.getElementById('selUserRole').value = user.role;
@@ -1099,19 +1224,19 @@ async function saveUser() {
         permissions: perms,
         active: document.getElementById('chkActive').checked
     };
-    if (!payload.username || !payload.password) { toast('⚠️ Champs requis', 'warn'); return; }
+    if (!payload.username || !payload.password) { toast('⚠️ Required fields', 'warn'); return; }
     let res;
     if (id) { payload.id = id; res = await apiCall('updateUser', payload); }
     else res = await apiCall('addUser', payload);
     if (res.success) {
-        toast('✅ Enregistré', 'success');
+        toast('✅ Saved', 'success');
         modal.classList.remove('open');
         refreshUsersTable();
-    } else toast('❌ ' + (res.error || 'Échec'), 'error');
+    } else toast('❌ ' + (res.error || 'Failed'), 'error');
 }
 
 /* =========================================================
-   PARAMÈTRES
+   SETTINGS
    ========================================================= */
 async function refreshSettings() {
     const res = await apiCall('getSetting', { key: 'opening_balance' });
@@ -1133,40 +1258,40 @@ async function refreshSettings() {
 
 async function saveOpeningBalance() {
     const val = parseFloat(document.getElementById('inpOpeningBalance').value.replace(',', '.')) || 0;
-    if (!confirm(`Confirmer ${fmtMoney(val)} comme nouveau Solde début ?`)) return;
+    if (!confirm(`Confirm ${fmtMoney(val)} as new opening balance?`)) return;
     const res = await apiCall('setSetting', { key: 'opening_balance', value: val });
     if (res.success) {
-        toast('✅ Solde début mis à jour', 'success');
+        toast('✅ Opening balance updated', 'success');
         refreshSettings(); refreshBanner(); refreshMovements();
-    } else toast('❌ Échec', 'error');
+    } else toast('❌ Failed', 'error');
 }
 
 async function deleteAllMovements() {
-    if (!confirm('⚠️ ATTENTION ⚠️\n\nSupprimer TOUS les mouvements ?\n\nIRRÉVERSIBLE !')) return;
-    const input = prompt('Tapez "SUPPRIMER" (majuscules) pour confirmer :');
-    if (input !== 'SUPPRIMER') { toast('❌ Annulé', 'warn'); return; }
-    if (!confirm('DERNIÈRE CONFIRMATION ?')) return;
+    if (!confirm('⚠️ WARNING ⚠️\n\nDelete ALL movements?\n\nIRREVERSIBLE!')) return;
+    const input = prompt('Type "DELETE" (uppercase) to confirm:');
+    if (input !== 'DELETE') { toast('❌ Cancelled', 'warn'); return; }
+    if (!confirm('FINAL CONFIRMATION?')) return;
 
-    toast('⏳ Suppression...', 'warn');
+    toast('⏳ Deleting...', 'warn');
     const res = await apiCall('deleteAllMovements', { confirm: 'DELETE_ALL' });
     if (res.success) {
-        toast(`✅ ${res.deleted || 0} supprimé(s)`, 'success');
+        toast(`✅ ${res.deleted || 0} deleted`, 'success');
         refreshMovements(); refreshBanner();
-    } else toast('❌ Échec : ' + (res.error || ''), 'error');
+    } else toast('❌ Failed: ' + (res.error || ''), 'error');
 }
 
 async function recalcBalanceGlobal() {
-    if (!confirm('🔄 Recalculer Solde Global\n\nMettre Solde début à 0 ?')) return;
+    if (!confirm('🔄 Recalculate Global Balance\n\nSet opening balance to 0?')) return;
     const res = await apiCall('setSetting', { key: 'opening_balance', value: 0 });
     if (res.success) {
-        toast('✅ Recalculé', 'success');
+        toast('✅ Recalculated', 'success');
         refreshSettings(); refreshBanner(); refreshMovements();
-    } else toast('❌ Échec', 'error');
+    } else toast('❌ Failed', 'error');
 }
 
 async function exportBackupJSON() {
     try {
-        toast('⏳ Préparation...', 'warn');
+        toast('⏳ Preparing...', 'warn');
         const [mvtRes, catRes, typeRes, setRes] = await Promise.all([
             apiCall('getMovements'),
             apiCall('getCategories'),
@@ -1185,17 +1310,17 @@ async function exportBackupJSON() {
         const json = JSON.stringify(backup, null, 2);
         const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
         downloadBlob(json, `MyCaisse_Backup_${stamp}.json`, 'application/json');
-        toast('✅ Sauvegarde exportée', 'success');
+        toast('✅ Backup exported', 'success');
     } catch (err) {
-        toast('❌ Erreur : ' + err.message, 'error');
+        toast('❌ Error: ' + err.message, 'error');
     }
 }
 
 /* =========================================================
-   ✅ ربط جميع الأحداث — دالة مستقلة
+   BIND ALL EVENTS — must be called BEFORE any await
    ========================================================= */
 function bindAllEvents() {
-    // Onglets (Tabs) — الحل الرئيسي
+    // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -1207,13 +1332,13 @@ function bindAllEvents() {
         });
     });
 
-    // Formulaire
+    // Form
     document.getElementById('opTypeGroup')?.addEventListener('change', refreshCategorySelect);
     document.getElementById('selCategory')?.addEventListener('change', refreshTypeSelect);
     document.getElementById('btnSave')?.addEventListener('click', saveMovement);
     document.getElementById('btnClear')?.addEventListener('click', clearForm);
 
-    // Filtres / Recherche
+    // Filters
     document.getElementById('btnFilter')?.addEventListener('click', refreshMovements);
     document.getElementById('searchInput')?.addEventListener('input', refreshMovements);
     document.getElementById('btnResetFilter')?.addEventListener('click', () => {
@@ -1231,19 +1356,19 @@ function bindAllEvents() {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
     });
 
-    // Actions table Mouvements
+    // Movements table actions
     document.getElementById('movTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.edit;
         const delId  = e.target.dataset.del;
         if (editId) await editMovement(Number(editId));
-        if (delId && confirm('Supprimer ce mouvement ?')) {
+        if (delId && confirm('Delete this movement?')) {
             await apiCall('deleteMovement', { id: Number(delId) });
-            toast('✅ Supprimé', 'success');
+            toast('✅ Deleted', 'success');
             refreshMovements();
         }
     });
 
-    // Utilisateurs
+    // Users
     document.getElementById('usersTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.editUser;
         const delId  = e.target.dataset.delUser;
@@ -1251,9 +1376,9 @@ function bindAllEvents() {
             const res = await apiCall('getUsers');
             openUserModal((res.users||[]).find(u => String(u.id) === String(editId)));
         }
-        if (delId && confirm('Supprimer cet utilisateur ?')) {
+        if (delId && confirm('Delete this user?')) {
             await apiCall('deleteUser', { id: Number(delId) });
-            toast('✅ Supprimé', 'success');
+            toast('✅ Deleted', 'success');
             refreshUsersTable();
         }
     });
@@ -1262,7 +1387,7 @@ function bindAllEvents() {
     document.getElementById('userModalClose')?.addEventListener('click', () =>
         document.getElementById('userModal').classList.remove('open'));
 
-    // Catégories & Types
+    // Categories & Types
     document.getElementById('btnAddCategory')?.addEventListener('click', addCategory);
     document.getElementById('btnAddType')?.addEventListener('click', addType);
     document.getElementById('typeParentCat')?.addEventListener('change', refreshTypesTable);
@@ -1276,21 +1401,21 @@ function bindAllEvents() {
         if (id) deleteType(Number(id));
     });
 
-    // Rapport
+    // Report
     document.getElementById('btnGenerateReport')?.addEventListener('click', generateReport);
     document.getElementById('btnReportExcel')?.addEventListener('click', exportReportExcel);
     document.getElementById('btnReportPDF')?.addEventListener('click', exportReportPDF);
     document.getElementById('btnSaveClosing')?.addEventListener('click', saveClosingAsOpening);
 
-    // Paramètres
+    // Settings
     document.getElementById('btnSaveOpening')?.addEventListener('click', saveOpeningBalance);
     document.getElementById('btnDeleteAllMvt')?.addEventListener('click', deleteAllMovements);
     document.getElementById('btnRecalcBalance')?.addEventListener('click', recalcBalanceGlobal);
     document.getElementById('btnExportBackup')?.addEventListener('click', exportBackupJSON);
 
-    // Déconnexion
+    // Logout
     document.getElementById('btnLogout')?.addEventListener('click', () => {
-        if (confirm('Se déconnecter ?')) {
+        if (confirm('Log out?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
             sessionStorage.removeItem('mycaisse_token');
             window.location.href = 'index.html';
@@ -1299,7 +1424,7 @@ function bindAllEvents() {
 }
 
 /* =========================================================
-   INITIALISATION
+   INITIALIZATION
    ========================================================= */
 document.addEventListener('DOMContentLoaded', async () => {
     if (!SESSION) return;
@@ -1311,10 +1436,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterTo').value = todayISO();
     document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
 
-    // ✅ 1) اربط الأحداث أولاً — قبل أي await
+    // 1) Bind events FIRST — before any await
     bindAllEvents();
 
-    // ✅ 2) ثم حمّل البيانات — كل واحدة في try/catch منفصل
+    // 2) Then load data — each in its own try/catch
     try { await refreshCategorySelect(); } catch (e) { console.error('refreshCategorySelect:', e); }
     try { await refreshMovements(); }      catch (e) { console.error('refreshMovements:', e); }
     try { await refreshUsersTable(); }     catch (e) { console.error('refreshUsersTable:', e); }
