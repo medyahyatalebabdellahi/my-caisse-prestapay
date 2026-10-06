@@ -23,7 +23,7 @@ const CONFIG = {
        ------------------------------------------------- */
     LOCAL_USERS: {
         "YAHYA": { password: "452760", role: "admin", permissions: ["all"] },
-        "MMS":   { password: "452760", role: "user",  permissions: ["view", "add", "export"] }
+        "MMS":   { password: "xx1234567", role: "user",  permissions: ["view", "add", "export"] }
     },
 
     /* -------------------------------------------------
