@@ -16,7 +16,7 @@ const CONFIG = {
     /* -------------------------------------------------
        API GOOGLE APPS SCRIPT
        ------------------------------------------------- */
-    API_URL: "https://script.google.com/macros/s/AKfycbxBvzmWxjWZxQ5E0hSBTOVPUQw2kpJCDslawZPmAuc4iNDi7iJNqEX6pXNAuzi7JIkN/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbyfQRepi9HaqKFrniE2i4_ooHmYlgSBt3Wgc7H1NMlr1pQfI0Y5c33yPtX5G6DzIpte/exec",
 
     /* -------------------------------------------------
        UTILISATEURS (mode LOCAL_MODE uniquement)
