@@ -8,8 +8,8 @@ const CONFIG = {
 
     /* -------------------------------------------------
        MODE D'EXÉCUTION
-       true  = LOCAL (recommandé, fonctionne à 100%)
-       false = Google Sheets (nécessite serveur configuré)
+       true  = LOCAL (fonctionne à 100%)
+       false = Google Sheets
        ------------------------------------------------- */
     LOCAL_MODE: true,
 
@@ -43,7 +43,7 @@ const CONFIG = {
     ],
 
     /* -------------------------------------------------
-       MÉTADONNÉES DE L'APPLICATION
+       MÉTADONNÉES
        ------------------------------------------------- */
     APP_NAME:    "My Caisse Prestapay",
     APP_VERSION: "2.4.0",
