@@ -1,6 +1,6 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Application Logic v2.3
-   Added: FRAIS support
+   MY CAISSE PRESTAPAY — Application Logic v2.4
+   Features: FRAIS + MISSIONS + SETTINGS
    ========================================================= */
 
 const SESSION = (() => {
@@ -46,6 +46,23 @@ function toast(msg, type='') {
 }
 
 /* =========================================================
+   MISSIONS — Configuration
+   ========================================================= */
+const MISSION_CATEGORIES = [
+    'MISSION',
+    'MISSIONS',
+    'MISSION LOCALE',
+    'MISSION NATIONALE'
+];
+
+function isMissionCategory(category) {
+    if (!category) return false;
+    const cat = String(category).toUpperCase().trim();
+    return MISSION_CATEGORIES.some(m => cat === m.toUpperCase()) ||
+           cat.startsWith('MISSION ');
+}
+
+/* =========================================================
    API CLIENT
    ========================================================= */
 async function apiCall(action, payload = {}) {
@@ -67,7 +84,7 @@ async function apiCall(action, payload = {}) {
 }
 
 /* =========================================================
-   LOCAL DB (offline fallback)
+   LOCAL DB
    ========================================================= */
 const LocalDB = {
     _key: 'mycaisse_data_v3',
@@ -93,9 +110,7 @@ const LocalDB = {
         const d = this._load();
         return kind ? d.categories.filter(c => c.kind === kind) : d.categories;
     },
-    getTypes(catId) {
-        return this._load().types.filter(t => String(t.category_id) === String(catId));
-    },
+    getTypes(catId) { return this._load().types.filter(t => String(t.category_id) === String(catId)); },
     addCategory(name, kind) {
         const d = this._load();
         if (d.categories.some(c => c.name.toUpperCase() === name.toUpperCase() && c.kind === kind)) return null;
@@ -118,10 +133,7 @@ const LocalDB = {
         const t = { id: Date.now(), category_id: catId, name: name.toUpperCase() };
         d.types.push(t); this._save(); return t;
     },
-    deleteType(id) {
-        const d = this._load();
-        d.types = d.types.filter(t => t.id !== id); this._save();
-    },
+    deleteType(id) { const d = this._load(); d.types = d.types.filter(t => t.id !== id); this._save(); },
     getMovements(from, to) {
         const d = this._load();
         return d.movements
@@ -210,7 +222,7 @@ async function refreshBanner() {
 }
 
 /* =========================================================
-   SÉLECTEURS CATÉGORIE & TYPE
+   CATÉGORIE & TYPE
    ========================================================= */
 async function refreshCategorySelect() {
     const kind = document.querySelector('input[name="opType"]:checked').value + 's';
@@ -243,7 +255,7 @@ async function refreshTypeSelect() {
 }
 
 /* =========================================================
-   MOUVEMENTS — AVEC FRAIS
+   MOUVEMENTS
    ========================================================= */
 let CURRENT_EDIT_ID = null;
 
@@ -271,7 +283,6 @@ async function refreshMovements() {
     }
 
     list.forEach(m => {
-        // ✅ Solde = + Recettes - Dépenses - Frais
         running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
         const tr = document.createElement('tr');
         tr.className = m.recette > 0 ? 'recette' : 'depense';
@@ -336,7 +347,7 @@ async function saveMovement() {
         await apiCall('addMovement', mvt);
         toast('✅ Mouvement ajouté.', 'success');
     }
-    clearForm(); refreshMovements();
+    clearForm(); refreshMovements(); refreshMissions();
 }
 
 async function editMovement(id) {
@@ -366,7 +377,161 @@ async function editMovement(id) {
 }
 
 /* =========================================================
-   CATÉGORIES & TYPES
+   MISSIONS
+   ========================================================= */
+async function refreshMissions() {
+    const from = document.getElementById('missionFrom').value;
+    const to   = document.getElementById('missionTo').value;
+    const q    = document.getElementById('missionSearch').value.trim().toLowerCase();
+    const isoFrom = from ? toISODate(from) : null;
+    const isoTo   = to ? toISODate(to) : null;
+
+    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
+    const all = res.movements || [];
+
+    let missions = all.filter(m => isMissionCategory(m.category));
+    if (q) missions = missions.filter(m => JSON.stringify(m).toLowerCase().includes(q));
+
+    const tbody = document.getElementById('missionsTbody');
+    tbody.innerHTML = '';
+
+    let totalRec = 0;
+    let totalDep = 0;
+
+    missions.forEach(m => {
+        totalRec += Number(m.recette || 0);
+        totalDep += Number(m.depense || 0);
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${fmtDate(m.date)}</td>
+            <td>${m.transaction_no || ''}</td>
+            <td>
+                <div class="mission-name">${m.description || m.type || 'Mission sans nom'}</div>
+                ${m.type ? `<div class="mission-desc">Type: ${m.type}</div>` : ''}
+            </td>
+            <td class="amt-recette" style="text-align:right">
+                ${m.recette ? fmtMoney(m.recette) : ''}
+            </td>
+            <td class="amt-depense" style="text-align:right">
+                ${m.depense ? fmtMoney(m.depense) : ''}
+            </td>
+            <td>
+                ${hasPerm('edit') ? `<button class="btn btn-gray" data-edit-mission="${m.id}">✏️</button>` : ''}
+                ${hasPerm('delete') ? `<button class="btn btn-danger" data-del-mission="${m.id}">🗑</button>` : ''}
+            </td>`;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('missionCount').textContent = missions.length;
+    document.getElementById('missionRecettes').textContent = fmtMoney(totalRec);
+    document.getElementById('missionDepenses').textContent = fmtMoney(totalDep);
+    document.getElementById('missionBalance').textContent = fmtMoney(totalRec - totalDep);
+    document.getElementById('missionsFoot').textContent = missions.length + ' mission(s)';
+}
+
+async function exportMissionsExcel() {
+    const from = document.getElementById('missionFrom').value;
+    const to   = document.getElementById('missionTo').value;
+    const isoFrom = from ? toISODate(from) : null;
+    const isoTo   = to ? toISODate(to) : null;
+
+    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
+    const missions = (res.movements || []).filter(m => isMissionCategory(m.category));
+
+    if (!missions.length) { toast('⚠️ Aucune mission à exporter', 'warn'); return; }
+
+    let totalRec = 0, totalDep = 0;
+    const data = [
+        ['MY CAISSE PRESTAPAY — SUIVI DES MISSIONS'],
+        [`Du ${from || 'N/A'} au ${to || 'N/A'}`],
+        [],
+        ['Date', 'N° Transaction', 'Nom de la Mission', 'Type', 'Recettes (MRU)', 'Dépenses (MRU)']
+    ];
+
+    missions.forEach(m => {
+        totalRec += Number(m.recette || 0);
+        totalDep += Number(m.depense || 0);
+        data.push([
+            fmtDate(m.date), m.transaction_no || '',
+            m.description || m.type || '', m.type || '',
+            m.recette || 0, m.depense || 0
+        ]);
+    });
+
+    data.push([]);
+    data.push(['', '', 'TOTAL RECETTES', '', totalRec, '']);
+    data.push(['', '', 'TOTAL DÉPENSES', '', '', totalDep]);
+    data.push(['', '', 'SOLDE MISSIONS', '', '', '', totalRec - totalDep]);
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Missions');
+    const stamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `Missions_${stamp}.xlsx`);
+    toast('✅ Excel missions exporté', 'success');
+}
+
+async function exportMissionsPDF() {
+    const from = document.getElementById('missionFrom').value;
+    const to   = document.getElementById('missionTo').value;
+    const isoFrom = from ? toISODate(from) : null;
+    const isoTo   = to ? toISODate(to) : null;
+
+    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
+    const missions = (res.movements || []).filter(m => isMissionCategory(m.category));
+
+    if (!missions.length) { toast('⚠️ Aucune mission à exporter', 'warn'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    doc.setFillColor(124, 58, 237);
+    doc.rect(0, 0, 297, 22, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16); doc.setFont(undefined, 'bold');
+    doc.text('MY CAISSE PRESTAPAY', 148, 10, { align: 'center' });
+    doc.setFontSize(9); doc.setFont(undefined, 'normal');
+    doc.text(`Suivi des Missions — Du ${from || 'N/A'} au ${to || 'N/A'}`, 148, 17, { align: 'center' });
+
+    let totalRec = 0, totalDep = 0;
+    missions.forEach(m => {
+        totalRec += Number(m.recette || 0);
+        totalDep += Number(m.depense || 0);
+    });
+
+    doc.setTextColor(30, 58, 138);
+    doc.setFontSize(10);
+    doc.text(`Total Missions : ${missions.length}`, 15, 30);
+    doc.text(`Total Recettes : ${fmtMoney(totalRec)}`, 90, 30);
+    doc.text(`Total Dépenses : ${fmtMoney(totalDep)}`, 165, 30);
+    doc.text(`Solde : ${fmtMoney(totalRec - totalDep)}`, 240, 30);
+
+    doc.autoTable({
+        startY: 36,
+        head: [['Date', 'N° Transaction', 'Nom de la Mission', 'Type', 'Recettes', 'Dépenses']],
+        body: missions.map(m => [
+            fmtDate(m.date), m.transaction_no || '',
+            m.description || m.type || '', m.type || '',
+            m.recette ? fmtMoney(m.recette) : '',
+            m.depense ? fmtMoney(m.depense) : ''
+        ]),
+        styles: { fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [124, 58, 237], textColor: 255 },
+        alternateRowStyles: { fillColor: [237, 233, 254] },
+        columnStyles: {
+            4: { halign: 'right', textColor: [5, 150, 105] },
+            5: { halign: 'right', textColor: [220, 38, 38] }
+        }
+    });
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    doc.save(`Missions_${stamp}.pdf`);
+    toast('✅ PDF missions exporté', 'success');
+}
+
+/* =========================================================
+   CATÉGORIES & TYPES (MANAGEMENT)
    ========================================================= */
 async function refreshManageTables() {
     const catRes = await apiCall('getCategories');
@@ -661,7 +826,11 @@ async function saveClosingAsOpening() {
     const res = await apiCall('setSetting', {
         key: 'opening_balance', value: CURRENT_REPORT.closing
     });
-    if (res.success) { toast('✅ Solde début mis à jour', 'success'); refreshBanner(); }
+    if (res.success) {
+        toast('✅ Solde début mis à jour', 'success');
+        refreshBanner();
+        loadSettings();
+    }
 }
 
 /* =========================================================
@@ -805,7 +974,7 @@ function downloadBlob(data, filename, mime) {
 }
 
 /* =========================================================
-   IMPORT (CSV / JSON / Excel / PDF)
+   IMPORT
    ========================================================= */
 function handleUpload(file) {
     if (!file) return;
@@ -876,9 +1045,9 @@ async function importCSV(text) {
         if (!cols.length) continue;
         const dateStr = parseDate(cols[idxDate]);
         if (!dateStr) { skipped++; continue; }
-        const amountRec = idxRec >= 0 ? parseAmount(cols[idxRec]) : 0;
-        const amountDep = idxDep >= 0 ? parseAmount(cols[idxDep]) : 0;
-        const amountFrais = idxFrais >= 0 ? parseAmount(cols[idxFrais]) : 0;
+        const amountRec = idxRec >= 0 ? safeAmount(cols[idxRec]) : 0;
+        const amountDep = idxDep >= 0 ? safeAmount(cols[idxDep]) : 0;
+        const amountFrais = idxFrais >= 0 ? safeAmount(cols[idxFrais]) : 0;
         if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? cols[idxCat]  : '',
@@ -893,7 +1062,7 @@ async function importCSV(text) {
         imported++;
     }
     toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
-    refreshMovements(); refreshBanner();
+    refreshMovements(); refreshMissions(); refreshBanner();
 }
 
 async function importExcel(arrayBuffer) {
@@ -930,9 +1099,9 @@ async function importExcel(arrayBuffer) {
             firstCell.includes('solde fin')) continue;
         const dateStr = parseDate(row[idxDate]);
         if (!dateStr) { skipped++; continue; }
-        const amountRec = idxRec >= 0 ? parseAmount(row[idxRec]) : 0;
-        const amountDep = idxDep >= 0 ? parseAmount(row[idxDep]) : 0;
-        const amountFrais = idxFrais >= 0 ? parseAmount(row[idxFrais]) : 0;
+        const amountRec = idxRec >= 0 ? safeAmount(row[idxRec]) : 0;
+        const amountDep = idxDep >= 0 ? safeAmount(row[idxDep]) : 0;
+        const amountFrais = idxFrais >= 0 ? safeAmount(row[idxFrais]) : 0;
         if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? row[idxCat]  : '',
@@ -948,7 +1117,7 @@ async function importExcel(arrayBuffer) {
         imported++;
     }
     toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
-    refreshMovements(); refreshBanner();
+    refreshMovements(); refreshMissions(); refreshBanner();
 }
 
 async function importPDF(arrayBuffer) {
@@ -971,11 +1140,18 @@ async function importPDF(arrayBuffer) {
         if (res.success) imported++;
     }
     toast(`✅ ${imported} mouvement(s) importé(s) du PDF`, 'success');
-    refreshMovements(); refreshBanner();
+    refreshMovements(); refreshMissions(); refreshBanner();
 }
 
 function parsePDFMovements(text) {
     const movements = [];
+    const typeKeywords = [
+        'LOCAL PRESTAPAY', 'LOCAL AGANCE', 'LOCAL AGENCE',
+        'LOCAL ROSSO MARCHE GANDR', 'AVANCE', 'SALAIRE', 'CARBURANT',
+        'SOMELEC', 'TTE', 'CREDIT MMS', 'CNX MMS',
+        'REG PARTIE 1', 'REG PARTIE 2', 'REG PARTIE 3', 'REG PARTIE 4',
+        'TRANSFERT PAR ERREUR'
+    ];
     const lines = text.split(/(?=\d{2}\/\d{2}\/\d{4})/g);
     for (const chunk of lines) {
         const trimmed = chunk.trim();
@@ -986,17 +1162,31 @@ function parsePDFMovements(text) {
         const trMatch = trimmed.match(/(TR\d+)/);
         const trNo = trMatch ? trMatch[1] : '';
         let rest = trimmed.replace(/^\d{2}\/\d{2}\/\d{4}\s*/, '').replace(/TR\d+\s*/, '');
-        const numbers = rest.match(/[\d\s]+[.,]\d{2}/g) || [];
-        if (!numbers.length) continue;
+        const amountPattern = /\b\d{1,3}(?:[\s,]\d{3})*(?:[.,]\d{2})?\b/g;
+        const numbers = rest.match(amountPattern) || [];
+        if (numbers.length < 1) continue;
         const amountStr = numbers.length >= 2 ? numbers[numbers.length - 2] : numbers[0];
-        const amount = parseAmount(amountStr);
+        const amount = safeAmount(amountStr);
         if (amount <= 0) continue;
-        let desc = rest.replace(/[\d\s]+[.,]\d{2}/g, ' ').replace(/\s+/g, ' ').trim();
-        const split = splitCategoryType('', '', desc);
-        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(split.category);
+        let desc = rest.replace(amountPattern, ' ').replace(/\s+/g, ' ')
+                       .replace(/[—–-]{2,}/g, '—').trim();
+        let category = '', description = desc, typeName = '';
+        const dashIdx = desc.indexOf('—');
+        if (dashIdx > 0) {
+            category = desc.substring(0, dashIdx).trim().toUpperCase();
+            description = desc.substring(dashIdx + 1).trim();
+        }
+        for (const keyword of typeKeywords) {
+            if (description.toUpperCase().startsWith(keyword)) {
+                typeName = keyword;
+                description = description.substring(keyword.length).trim();
+                break;
+            }
+        }
+        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(desc);
         movements.push({
             date: isoDate, transaction_no: trNo,
-            category: split.category, type: split.type, description: split.description,
+            category: category, type: typeName, description: description,
             recette: isIncome ? amount : 0, depense: isIncome ? 0 : amount, frais: 0
         });
     }
@@ -1016,12 +1206,12 @@ async function importJSON(text) {
             });
         }
         toast(`✅ ${data.length} importé(s)`, 'success');
-        refreshMovements();
+        refreshMovements(); refreshMissions();
     }
 }
 
 /* =========================================================
-   HELPERS IMPORT
+   HELPERS
    ========================================================= */
 function splitCategoryType(rawCategory, rawType, rawDescription) {
     let category = String(rawCategory || '').trim().toUpperCase();
@@ -1084,6 +1274,13 @@ function parseAmount(v) {
     else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
     const n = parseFloat(s);
     return isNaN(n) ? 0 : n;
+}
+
+/* ✅ حماية: إذا كان الرقم أكبر من 10 مليون، تجاهله */
+function safeAmount(v) {
+    const num = parseAmount(v);
+    if (num > 10000000) return 0;
+    return num;
 }
 
 /* =========================================================
@@ -1151,6 +1348,97 @@ async function saveUser() {
 }
 
 /* =========================================================
+   PARAMÈTRES (Admin uniquement)
+   ========================================================= */
+async function loadSettings() {
+    const res = await apiCall('getSetting', { key: 'opening_balance' });
+    const opening = Number(res.value || 0);
+    document.getElementById('currentOpeningBalance').textContent = fmtMoney(opening);
+    document.getElementById('inpOpeningBalance').value = opening;
+
+    document.getElementById('infoAppName').textContent = CONFIG.APP_NAME;
+    document.getElementById('infoVersion').textContent = CONFIG.APP_VERSION;
+    document.getElementById('infoMode').textContent = CONFIG.LOCAL_MODE ? 'Local' : 'Serveur (Google Sheets)';
+    document.getElementById('infoUser').textContent = SESSION.username + ' (' + SESSION.role + ')';
+}
+
+async function saveOpeningBalance() {
+    const input = document.getElementById('inpOpeningBalance');
+    const value = parseFloat(input.value.replace(',', '.')) || 0;
+
+    if (!confirm(
+        `⚠️ Confirmer la modification du Solde Début ?\n\n` +
+        `Nouveau solde début : ${fmtMoney(value)}\n\n` +
+        `Cette modification affectera tous les calculs de solde.`
+    )) return;
+
+    const res = await apiCall('setSetting', { key: 'opening_balance', value: value });
+
+    if (res.success) {
+        toast('✅ Solde début mis à jour : ' + fmtMoney(value), 'success');
+        await loadSettings();
+        await refreshBanner();
+        await refreshMovements();
+    } else {
+        toast('❌ Échec : ' + (res.error || 'Erreur inconnue'), 'error');
+    }
+}
+
+async function recalculateBalance() {
+    if (!confirm(
+        '🔄 Recalculer le solde global ?\n\n' +
+        'Cette action va:\n' +
+        '1. Lire toutes les transactions\n' +
+        '2. Calculer le solde correct\n' +
+        '3. Comparer avec le solde actuel'
+    )) return;
+
+    const res = await apiCall('getMovements');
+    const mvts = res.movements || [];
+    const totalRec = mvts.reduce((s,m) => s + Number(m.recette||0), 0);
+    const totalDep = mvts.reduce((s,m) => s + Number(m.depense||0), 0);
+    const totalFrais = mvts.reduce((s,m) => s + Number(m.frais||0), 0);
+    const openingRes = await apiCall('getSetting', { key: 'opening_balance' });
+    const opening = Number(openingRes.value || 0);
+    const finalBalance = opening + totalRec - totalDep - totalFrais;
+
+    alert(
+        `📊 Récapitulatif Global\n\n` +
+        `Nombre de transactions : ${mvts.length}\n` +
+        `Solde début : ${fmtMoney(opening)}\n` +
+        `Total Recettes : ${fmtMoney(totalRec)}\n` +
+        `Total Dépenses : ${fmtMoney(totalDep)}\n` +
+        `Total Frais : ${fmtMoney(totalFrais)}\n` +
+        `━━━━━━━━━━━━━━━━━━━\n` +
+        `Solde final calculé : ${fmtMoney(finalBalance)}`
+    );
+    await refreshBanner();
+}
+
+async function exportBackup() {
+    const [mvtsRes, catsRes, setsRes] = await Promise.all([
+        apiCall('getMovements'),
+        apiCall('getCategories'),
+        apiCall('getSetting', { key: 'opening_balance' })
+    ]);
+
+    const backup = {
+        exportedAt: new Date().toISOString(),
+        app: CONFIG.APP_NAME,
+        version: CONFIG.APP_VERSION,
+        user: SESSION.username,
+        opening_balance: setsRes.value,
+        movements: mvtsRes.movements || [],
+        categories: catsRes.categories || []
+    };
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const stamp = new Date().toISOString().slice(0,10);
+    downloadBlob(blob, `MyCaisse_Backup_${stamp}.json`);
+    toast('✅ Sauvegarde exportée', 'success');
+}
+
+/* =========================================================
    INITIALISATION
    ========================================================= */
 document.addEventListener('DOMContentLoaded', async () => {
@@ -1163,11 +1451,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('filterTo').value = toFRDate(todayISO());
     document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
 
+    // Missions : mêmes filtres par défaut
+    document.getElementById('missionFrom').value = document.getElementById('filterFrom').value;
+    document.getElementById('missionTo').value = document.getElementById('filterTo').value;
+
     await refreshCategorySelect();
     await refreshMovements();
     await refreshUsersTable();
     await refreshManageTables();
+    await refreshMissions();
 
+    if (SESSION.role === 'admin') {
+        await loadSettings();
+    }
+
+    // Events Mouvements
     document.getElementById('opTypeGroup').addEventListener('change', refreshCategorySelect);
     document.getElementById('selCategory').addEventListener('change', refreshTypeSelect);
     document.getElementById('btnSave').addEventListener('click', saveMovement);
@@ -1178,10 +1476,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelectorAll('[data-export]').forEach(b =>
         b.addEventListener('click', () => exportData(b.dataset.export)));
 
+    // Upload
     document.getElementById('fileInput').addEventListener('change', e => {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
     });
 
+    // Mouvements actions
     document.getElementById('movTbody').addEventListener('click', async (e) => {
         const editId = e.target.dataset.edit;
         const delId  = e.target.dataset.del;
@@ -1189,10 +1489,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (delId && confirm('Supprimer ce mouvement ?')) {
             await apiCall('deleteMovement', { id: Number(delId) });
             toast('✅ Supprimé', 'success');
-            refreshMovements();
+            refreshMovements(); refreshMissions();
         }
     });
 
+    // Missions
+    document.getElementById('btnFilterMissions')?.addEventListener('click', refreshMissions);
+    document.getElementById('missionSearch')?.addEventListener('input', refreshMissions);
+    document.getElementById('btnMissionExcel')?.addEventListener('click', exportMissionsExcel);
+    document.getElementById('btnMissionPDF')?.addEventListener('click', exportMissionsPDF);
+
+    document.getElementById('missionsTbody')?.addEventListener('click', async (e) => {
+        const editId = e.target.dataset.editMission;
+        const delId  = e.target.dataset.delMission;
+        if (editId) {
+            document.querySelector('[data-tab="tabMovements"]').click();
+            await editMovement(Number(editId));
+        }
+        if (delId && confirm('Supprimer cette mission ?')) {
+            await apiCall('deleteMovement', { id: Number(delId) });
+            toast('✅ Mission supprimée', 'success');
+            refreshMissions(); refreshMovements();
+        }
+    });
+
+    // Users
     document.getElementById('usersTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.editUser;
         const delId  = e.target.dataset.delUser;
@@ -1211,6 +1532,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userModalClose')?.addEventListener('click', () =>
         document.getElementById('userModal').classList.remove('open'));
 
+    // Manage categories/types
     document.getElementById('btnAddCategory')?.addEventListener('click', addCategory);
     document.getElementById('btnAddType')?.addEventListener('click', addType);
     document.getElementById('typeParentCat')?.addEventListener('change', refreshTypesTable);
@@ -1225,20 +1547,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (id) deleteType(Number(id));
     });
 
+    // Report
     document.getElementById('btnGenerateReport')?.addEventListener('click', generateReport);
     document.getElementById('btnReportExcel')?.addEventListener('click', exportReportExcel);
     document.getElementById('btnReportPDF')?.addEventListener('click', exportReportPDF);
     document.getElementById('btnSaveClosing')?.addEventListener('click', saveClosingAsOpening);
 
+    // Settings (Admin)
+    document.getElementById('btnSaveOpening')?.addEventListener('click', saveOpeningBalance);
+    document.getElementById('btnRecalcBalance')?.addEventListener('click', recalculateBalance);
+    document.getElementById('btnExportBackup')?.addEventListener('click', exportBackup);
+
+    // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
+        tab.addEventListener('click', async () => {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById(tab.dataset.tab).classList.add('active');
+
+            if (tab.dataset.tab === 'tabSettings') {
+                await loadSettings();
+            }
+            if (tab.dataset.tab === 'tabMissions') {
+                document.getElementById('missionFrom').value =
+                    document.getElementById('filterFrom').value;
+                document.getElementById('missionTo').value =
+                    document.getElementById('filterTo').value;
+                await refreshMissions();
+            }
         });
     });
 
+    // Logout
     document.getElementById('btnLogout').addEventListener('click', () => {
         if (confirm('Se déconnecter ?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
