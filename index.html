@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Caisse Prestapay — Login</title>
+<title>My Caisse Prestapay — Connexion</title>
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
 </head>
@@ -22,12 +22,12 @@
             <span class="line"></span>
         </div>
 
-        <p class="login-version">Version 2.0.0</p>
+        <p class="login-version">Version 2.1.0</p>
 
         <form id="loginForm">
             <div class="field">
                 <span class="field-icon">👤</span>
-                <input type="text" id="username" placeholder="Username" required>
+                <input type="text" id="username" placeholder="Yahya" required>
             </div>
 
             <div class="field">
@@ -40,27 +40,27 @@
                 <label class="checkbox">
                     <input type="checkbox" id="remember">
                     <span class="checkmark"></span>
-                    <span>Remember me</span>
+                    <span>Se souvenir de moi</span>
                 </label>
-                <a href="#" class="forgot" id="forgotLink">Forgot password?</a>
+                <a href="#" class="forgot" id="forgotLink">Mot de passe oublié ?</a>
             </div>
 
             <p class="login-error" id="loginError"></p>
 
             <button type="submit" class="btn-primary" id="loginBtn">
-                <span>🔐</span> Sign In
+                <span>🔐</span> Se connecter
             </button>
 
             <div class="secure-badge">
                 <span class="shield">🛡</span>
-                <span>Secured Access</span>
+                <span>Accès sécurisé</span>
             </div>
         </form>
     </div>
 
     <div class="wave-bg"></div>
     <div class="login-footer">
-        <p>Your cash management,<br>simpler and safer!</p>
+        <p>Votre gestion de caisse,<br>plus simple et plus sûre !</p>
     </div>
     <div class="toast" id="toast"></div>
 
@@ -101,12 +101,12 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     errEl.textContent = '';
 
     if (!username || !password) {
-        errEl.textContent = 'Please fill in all fields.';
+        errEl.textContent = 'Veuillez remplir tous les champs.';
         return;
     }
 
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Connecting...';
+    btn.innerHTML = '<span>⏳</span> Connexion...';
 
     try {
         let user = null;
@@ -127,7 +127,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 user = data.user;
                 sessionStorage.setItem('mycaisse_token', data.token);
             } else {
-                errEl.textContent = data.error || 'Login failed';
+                errEl.textContent = data.error || 'Échec de connexion';
                 passEl.value = '';
                 passEl.focus();
                 return;
@@ -135,7 +135,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         }
 
         if (!user) {
-            errEl.textContent = 'Invalid username or password.';
+            errEl.textContent = 'Nom d\'utilisateur ou mot de passe incorrect.';
             passEl.value = '';
             passEl.focus();
             return;
@@ -158,15 +158,15 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (remember) localStorage.setItem('mycaisse_remember_user', username);
         else localStorage.removeItem('mycaisse_remember_user');
 
-        toast('Login successful — Redirecting...', 'success');
+        toast('Connexion réussie — Redirection...', 'success');
         setTimeout(() => window.location.href = 'app.html', 600);
 
     } catch (err) {
         console.error(err);
-        errEl.textContent = 'Connection error. Please try again.';
+        errEl.textContent = 'Erreur de connexion. Veuillez réessayer.';
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span>🔐</span> Sign In';
+        btn.innerHTML = '<span>🔐</span> Se connecter';
     }
 });
 
@@ -181,7 +181,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
 document.getElementById('forgotLink').onclick = (e) => {
     e.preventDefault();
-    toast('Contact the administrator to reset your password.', 'warn');
+    toast('Contactez l\'administrateur pour réinitialiser votre mot de passe.', 'warn');
 };
 </script>
 </body>
