@@ -1,6 +1,6 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Application Logic v2.1
-   Site : Français
+   MY CAISSE PRESTAPAY — Application Logic v2.3
+   Added: FRAIS support
    ========================================================= */
 
 const SESSION = (() => {
@@ -18,7 +18,7 @@ function hasPerm(p) {
     return SESSION.permissions?.includes(p) || false;
 }
 
-/* ---------- Utilitaires ---------- */
+/* ---------- Utilities ---------- */
 const fmtMoney = (v) => {
     const n = Number(v || 0);
     return n.toLocaleString('fr-FR', { minimumFractionDigits: 2,
@@ -50,34 +50,27 @@ function toast(msg, type='') {
    ========================================================= */
 async function apiCall(action, payload = {}) {
     if (CONFIG.LOCAL_MODE) return localApi(action, payload);
-
     const token = sessionStorage.getItem('mycaisse_token') || '';
-
-    // Build query string (GET is CORS-safe with Apps Script)
     const params = new URLSearchParams();
     params.append('action', action);
     params.append('token', token);
-
-    // Add simple payload fields
     Object.keys(payload).forEach(key => {
         const value = payload[key];
         if (value === null || value === undefined) return;
-        if (typeof value === 'object') return; // skip nested objects
+        if (typeof value === 'object') return;
         params.append(key, String(value));
     });
-
     const res = await fetch(CONFIG.API_URL + '?' + params.toString(), {
-        method: 'GET',
-        redirect: 'follow'
+        method: 'GET', redirect: 'follow'
     });
     return res.json();
 }
 
 /* =========================================================
-   LOCAL DB
+   LOCAL DB (offline fallback)
    ========================================================= */
 const LocalDB = {
-    _key: 'mycaisse_data_v2',
+    _key: 'mycaisse_data_v3',
     _data: null,
     _load() {
         if (this._data) return this._data;
@@ -206,10 +199,14 @@ async function refreshBanner() {
     const mvts = mvtRes.movements || [];
     const recettes = mvts.reduce((s,m) => s + Number(m.recette||0), 0);
     const depenses = mvts.reduce((s,m) => s + Number(m.depense||0), 0);
+    const frais    = mvts.reduce((s,m) => s + Number(m.frais||0), 0);
     document.getElementById('statOpening').textContent = fmtMoney(opening);
     document.getElementById('statRecettes').textContent = fmtMoney(recettes);
     document.getElementById('statDepenses').textContent = fmtMoney(depenses);
-    document.getElementById('statFinal').textContent = fmtMoney(opening + recettes - depenses);
+    const fraisEl = document.getElementById('statFrais');
+    if (fraisEl) fraisEl.textContent = fmtMoney(frais);
+    document.getElementById('statFinal').textContent =
+        fmtMoney(opening + recettes - depenses - frais);
 }
 
 /* =========================================================
@@ -246,7 +243,7 @@ async function refreshTypeSelect() {
 }
 
 /* =========================================================
-   MOUVEMENTS
+   MOUVEMENTS — AVEC FRAIS
    ========================================================= */
 let CURRENT_EDIT_ID = null;
 
@@ -270,11 +267,12 @@ async function refreshMovements() {
     if (isoFrom) {
         const allRes = await apiCall('getMovements');
         (allRes.movements || []).filter(m => m.date < isoFrom)
-            .forEach(m => running += Number(m.recette||0) - Number(m.depense||0));
+            .forEach(m => running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0));
     }
 
     list.forEach(m => {
-        running += Number(m.recette||0) - Number(m.depense||0);
+        // ✅ Solde = + Recettes - Dépenses - Frais
+        running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
         const tr = document.createElement('tr');
         tr.className = m.recette > 0 ? 'recette' : 'depense';
         tr.innerHTML = `
@@ -285,6 +283,7 @@ async function refreshMovements() {
             <td>${m.description || ''}</td>
             <td class="amt-recette">${m.recette ? fmtMoney(m.recette) : ''}</td>
             <td class="amt-depense">${m.depense ? fmtMoney(m.depense) : ''}</td>
+            <td class="amt-frais">${m.frais ? fmtMoney(m.frais) : ''}</td>
             <td class="amt-solde">${fmtMoney(running)}</td>
             <td>
                 ${hasPerm('edit') ? `<button class="btn btn-gray" data-edit="${m.id}">✏️</button>` : ''}
@@ -301,6 +300,7 @@ function clearForm() {
     document.getElementById('inpTransaction').value = '';
     document.getElementById('inpDescription').value = '';
     document.getElementById('inpAmount').value = '';
+    document.getElementById('inpFrais').value = '0';
     document.getElementById('inpDate').value = toFRDate(todayISO());
     document.getElementById('formTitle').textContent = 'Nouveau Mouvement';
     document.getElementById('btnSave').textContent = '➕ Ajouter';
@@ -311,6 +311,7 @@ async function saveMovement() {
     const trNo   = document.getElementById('inpTransaction').value.trim();
     const desc   = document.getElementById('inpDescription').value.trim();
     const amount = parseFloat(document.getElementById('inpAmount').value.replace(',', '.')) || 0;
+    const frais  = parseFloat((document.getElementById('inpFrais')?.value || '0').replace(',', '.')) || 0;
     const catSel = document.getElementById('selCategory');
     const typeSel = document.getElementById('selType');
     const catName  = catSel.options[catSel.selectedIndex]?.dataset?.name || '';
@@ -324,7 +325,8 @@ async function saveMovement() {
         date: iso, transaction_no: trNo, category: catName, type: typeName,
         description: desc,
         recette: type === 'Recette' ? amount : 0,
-        depense: type === 'Dépense' ? amount : 0
+        depense: type === 'Dépense' ? amount : 0,
+        frais:   frais
     };
     if (CURRENT_EDIT_ID) {
         mvt.id = CURRENT_EDIT_ID;
@@ -346,6 +348,8 @@ async function editMovement(id) {
     document.getElementById('inpTransaction').value = m.transaction_no || '';
     document.getElementById('inpDescription').value = m.description || '';
     document.getElementById('inpAmount').value = m.recette || m.depense;
+    document.getElementById('inpFrais').value = m.frais || 0;
+
     const type = m.recette > 0 ? 'Recette' : 'Dépense';
     document.querySelector(`input[name="opType"][value="${type}"]`).checked = true;
     await refreshCategorySelect();
@@ -475,10 +479,10 @@ async function generateReport() {
     const before = all.filter(m => m.date < month + '-01');
     const openingRes = await apiCall('getSetting', { key: 'opening_balance' });
     let opening = Number(openingRes.value || 0);
-    before.forEach(m => opening += Number(m.recette||0) - Number(m.depense||0));
+    before.forEach(m => opening += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0));
 
     const grouped = {};
-    let totalDep = 0, totalRec = 0;
+    let totalDep = 0, totalRec = 0, totalFrais = 0;
     finalList.forEach(m => {
         const cat = m.category || 'SANS CATÉGORIE';
         const typ = m.type || 'SANS TYPE';
@@ -488,11 +492,12 @@ async function generateReport() {
         grouped[cat].total += Number(m.depense || 0);
         totalDep += Number(m.depense || 0);
         totalRec += Number(m.recette || 0);
+        totalFrais += Number(m.frais || 0);
     });
 
     CURRENT_REPORT = {
-        month, opening, totalDep, totalRec,
-        closing: opening + totalRec - totalDep,
+        month, opening, totalDep, totalRec, totalFrais,
+        closing: opening + totalRec - totalDep - totalFrais,
         grouped, movements: finalList, selectedCats
     };
     renderReport(CURRENT_REPORT);
@@ -510,7 +515,7 @@ function renderReport(r) {
             DÉPENSE EXPLOITATION PRESTAPAY — ${monthLabel.toUpperCase()}
         </div>
         <div class="card-body">
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">
                 <div style="background:var(--violet-light);padding:12px;border-radius:10px;text-align:center">
                     <div style="font-size:11px;font-weight:700;color:var(--blue-dark)">SOLDE DÉBUT</div>
                     <div style="font-size:16px;font-weight:800;color:var(--violet-dark)">${fmtMoney(r.opening)}</div>
@@ -522,6 +527,10 @@ function renderReport(r) {
                 <div style="background:#FEE2E2;padding:12px;border-radius:10px;text-align:center">
                     <div style="font-size:11px;font-weight:700;color:#991B1B">DÉPENSES</div>
                     <div style="font-size:16px;font-weight:800;color:#DC2626">${fmtMoney(r.totalDep)}</div>
+                </div>
+                <div style="background:#FFEDD5;padding:12px;border-radius:10px;text-align:center">
+                    <div style="font-size:11px;font-weight:700;color:#9A3412">FRAIS</div>
+                    <div style="font-size:16px;font-weight:800;color:#D97706">${fmtMoney(r.totalFrais)}</div>
                 </div>
                 <div style="background:linear-gradient(135deg,#7C3AED,#6D28D9);padding:12px;border-radius:10px;text-align:center;color:#fff">
                     <div style="font-size:11px;font-weight:700">SOLDE FIN</div>
@@ -573,6 +582,7 @@ function exportReportExcel() {
         ['Solde début', r.opening],
         ['Total Recettes', r.totalRec],
         ['Total Dépenses', r.totalDep],
+        ['Total Frais', r.totalFrais],
         ['Solde fin', r.closing],
         [],
         ['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']
@@ -613,7 +623,8 @@ function exportReportPDF() {
     doc.text('Solde début : ' + fmtMoney(r.opening), 15, y0);
     doc.text('Total Recettes : ' + fmtMoney(r.totalRec), 15, y0 + 6);
     doc.text('Total Dépenses : ' + fmtMoney(r.totalDep), 15, y0 + 12);
-    doc.text('Solde fin : ' + fmtMoney(r.closing), 15, y0 + 18);
+    doc.text('Total Frais : ' + fmtMoney(r.totalFrais), 15, y0 + 18);
+    doc.text('Solde fin : ' + fmtMoney(r.closing), 15, y0 + 24);
 
     const rows = [];
     Object.keys(r.grouped).sort().forEach(cat => {
@@ -633,7 +644,7 @@ function exportReportPDF() {
                  styles: { halign:'right', fontStyle:'bold',
                            fillColor:[30,58,138], textColor:[255,255,255] } }]);
     doc.autoTable({
-        startY: y0 + 26,
+        startY: y0 + 32,
         head: [['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']],
         body: rows,
         styles: { fontSize: 9, cellPadding: 3 },
@@ -654,7 +665,7 @@ async function saveClosingAsOpening() {
 }
 
 /* =========================================================
-   EXPORTS
+   EXPORTS (Main)
    ========================================================= */
 async function exportData(format) {
     const from = document.getElementById('filterFrom').value;
@@ -670,26 +681,27 @@ async function exportData(format) {
     if (isoFrom) {
         const allRes = await apiCall('getMovements');
         (allRes.movements || []).filter(m => m.date < isoFrom)
-            .forEach(m => opening += Number(m.recette||0) - Number(m.depense||0));
+            .forEach(m => opening += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0));
     }
     const tRec = movements.reduce((s,m) => s + Number(m.recette||0), 0);
     const tDep = movements.reduce((s,m) => s + Number(m.depense||0), 0);
-    const finalBal = opening + tRec - tDep;
+    const tFrais = movements.reduce((s,m) => s + Number(m.frais||0), 0);
+    const finalBal = opening + tRec - tDep - tFrais;
     const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
 
     if (format === 'excel') {
         const data = [
             ['MY CAISSE PRESTAPAY'],
             ['Période', `${from || 'N/A'} → ${to || 'N/A'}`],
-            ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Solde fin', finalBal],
+            ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
             [],
-            ['Date','N° Transaction','Catégorie','Type','Description','Recettes','Dépenses','Solde']
+            ['Date','N° Transaction','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']
         ];
         let running = opening;
         movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0);
+            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
             data.push([fmtDate(m.date), m.transaction_no||'', m.category||'',
-                       m.type||'', m.description||'', m.recette||0, m.depense||0, running]);
+                       m.type||'', m.description||'', m.recette||0, m.depense||0, m.frais||0, running]);
         });
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
@@ -697,12 +709,12 @@ async function exportData(format) {
         XLSX.writeFile(wb, `MyCaisse_${stamp}.xlsx`);
         toast('✅ Excel exporté', 'success');
     } else if (format === 'csv') {
-        let csv = 'Date,N° Transaction,Catégorie,Type,Description,Recettes,Dépenses,Solde\n';
+        let csv = 'Date,N° Transaction,Catégorie,Type,Description,Recettes,Dépenses,Frais,Solde\n';
         let running = opening;
         movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0);
+            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
             csv += [fmtDate(m.date), m.transaction_no||'', m.category||'',
-                    m.type||'', m.description||'', m.recette||0, m.depense||0, running]
+                    m.type||'', m.description||'', m.recette||0, m.depense||0, m.frais||0, running]
                     .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
         });
         downloadBlob(csv, `MyCaisse_${stamp}.csv`, 'text/csv;charset=utf-8');
@@ -719,21 +731,28 @@ async function exportData(format) {
         doc.text(`Du ${from||'N/A'} au ${to||'N/A'}`, 148, 18, { align:'center' });
         doc.setTextColor(30,58,138); doc.setFontSize(10);
         doc.text(`Solde début: ${fmtMoney(opening)}`, 15, 30);
-        doc.text(`Recettes: ${fmtMoney(tRec)}`, 90, 30);
-        doc.text(`Dépenses: ${fmtMoney(tDep)}`, 165, 30);
-        doc.text(`Solde fin: ${fmtMoney(finalBal)}`, 240, 30);
+        doc.text(`Recettes: ${fmtMoney(tRec)}`, 75, 30);
+        doc.text(`Dépenses: ${fmtMoney(tDep)}`, 135, 30);
+        doc.text(`Frais: ${fmtMoney(tFrais)}`, 190, 30);
+        doc.text(`Solde fin: ${fmtMoney(finalBal)}`, 245, 30);
         let running = opening;
         doc.autoTable({
             startY: 36,
-            head: [['Date','N°','Catégorie','Type','Description','Recettes','Dépenses','Solde']],
+            head: [['Date','N°','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']],
             body: movements.map(m => {
-                running += Number(m.recette||0) - Number(m.depense||0);
+                running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
                 return [fmtDate(m.date), m.transaction_no||'', m.category||'',
                         m.type||'', m.description||'', m.recette?fmtMoney(m.recette):'',
-                        m.depense?fmtMoney(m.depense):'', fmtMoney(running)];
+                        m.depense?fmtMoney(m.depense):'', m.frais?fmtMoney(m.frais):'', fmtMoney(running)];
             }),
             styles: { fontSize: 7, cellPadding: 2 },
-            headStyles: { fillColor: [124,58,237], textColor: 255 }
+            headStyles: { fillColor: [124,58,237], textColor: 255 },
+            columnStyles: {
+                5: { halign:'right', textColor:[5,150,105] },
+                6: { halign:'right', textColor:[220,38,38] },
+                7: { halign:'right', textColor:[217,119,6] },
+                8: { halign:'right', fontStyle:'bold' }
+            }
         });
         doc.save(`MyCaisse_${stamp}.pdf`);
         toast('✅ PDF exporté', 'success');
@@ -741,14 +760,15 @@ async function exportData(format) {
         let rows = '';
         let running = opening;
         movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0);
+            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
             rows += `<tr>
                 <td>${fmtDate(m.date)}</td><td>${m.transaction_no||''}</td>
                 <td>${m.category||''}</td><td>${m.type||''}</td>
                 <td>${m.description||''}</td>
-                <td style="text-align:right">${m.recette?fmtMoney(m.recette):''}</td>
-                <td style="text-align:right">${m.depense?fmtMoney(m.depense):''}</td>
-                <td style="text-align:right">${fmtMoney(running)}</td>
+                <td style="text-align:right;color:#059669">${m.recette?fmtMoney(m.recette):''}</td>
+                <td style="text-align:right;color:#DC2626">${m.depense?fmtMoney(m.depense):''}</td>
+                <td style="text-align:right;color:#D97706">${m.frais?fmtMoney(m.frais):''}</td>
+                <td style="text-align:right;font-weight:bold">${fmtMoney(running)}</td>
             </tr>`;
         });
         const html = `<html><head><meta charset="utf-8"><style>
@@ -763,10 +783,11 @@ async function exportData(format) {
         <p><b>Solde début:</b> ${fmtMoney(opening)} |
            <b>Recettes:</b> ${fmtMoney(tRec)} |
            <b>Dépenses:</b> ${fmtMoney(tDep)} |
+           <b>Frais:</b> ${fmtMoney(tFrais)} |
            <b>Solde fin:</b> ${fmtMoney(finalBal)}</p>
         <table><thead><tr>
             <th>Date</th><th>N°</th><th>Catégorie</th><th>Type</th>
-            <th>Description</th><th>Recettes</th><th>Dépenses</th><th>Solde</th>
+            <th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th>
         </tr></thead><tbody>${rows}</tbody></table>
         </body></html>`;
         downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }),
@@ -789,7 +810,6 @@ function downloadBlob(data, filename, mime) {
 function handleUpload(file) {
     if (!file) return;
     const name = file.name.toLowerCase();
-
     if (name.endsWith('.csv')) {
         const reader = new FileReader();
         reader.onload = async (e) => {
@@ -825,19 +845,17 @@ function handleUpload(file) {
 
 async function importCSV(text) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) { toast('⚠️ Fichier CSV vide', 'warn'); return; }
+    if (lines.length < 2) { toast('⚠️ CSV vide', 'warn'); return; }
     const delim = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
     const splitLine = (line) => {
-        const result = [];
-        let current = '', inQuotes = false;
+        const result = []; let current = '', inQuotes = false;
         for (let i = 0; i < line.length; i++) {
             const ch = line[i];
             if (ch === '"') {
                 if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
                 else inQuotes = !inQuotes;
-            } else if (ch === delim && !inQuotes) {
-                result.push(current); current = '';
-            } else current += ch;
+            } else if (ch === delim && !inQuotes) { result.push(current); current = ''; }
+            else current += ch;
         }
         result.push(current);
         return result.map(c => c.trim().replace(/^"|"$/g, ''));
@@ -850,6 +868,7 @@ async function importCSV(text) {
     const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
     const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
     const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+    const idxFrais = headers.findIndex(h => h.includes('frais'));
 
     let imported = 0, skipped = 0;
     for (let i = 1; i < lines.length; i++) {
@@ -859,6 +878,7 @@ async function importCSV(text) {
         if (!dateStr) { skipped++; continue; }
         const amountRec = idxRec >= 0 ? parseAmount(cols[idxRec]) : 0;
         const amountDep = idxDep >= 0 ? parseAmount(cols[idxDep]) : 0;
+        const amountFrais = idxFrais >= 0 ? parseAmount(cols[idxFrais]) : 0;
         if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? cols[idxCat]  : '',
@@ -868,7 +888,7 @@ async function importCSV(text) {
         await apiCall('addMovement', {
             date: dateStr, transaction_no: idxTrNo >= 0 ? cols[idxTrNo] : '',
             category: split.category, type: split.type, description: split.description,
-            recette: amountRec, depense: amountDep
+            recette: amountRec, depense: amountDep, frais: amountFrais
         });
         imported++;
     }
@@ -881,7 +901,7 @@ async function importExcel(arrayBuffer) {
     const workbook = XLSX.read(data, { type: 'array' });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-    if (rows.length < 2) { toast('⚠️ Fichier Excel vide', 'warn'); return; }
+    if (rows.length < 2) { toast('⚠️ Excel vide', 'warn'); return; }
 
     let headerRow = 0;
     for (let i = 0; i < Math.min(rows.length, 15); i++) {
@@ -899,6 +919,7 @@ async function importExcel(arrayBuffer) {
     const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
     const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
     const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+    const idxFrais = headers.findIndex(h => h.includes('frais'));
 
     let imported = 0, skipped = 0;
     for (let i = headerRow + 1; i < rows.length; i++) {
@@ -911,6 +932,7 @@ async function importExcel(arrayBuffer) {
         if (!dateStr) { skipped++; continue; }
         const amountRec = idxRec >= 0 ? parseAmount(row[idxRec]) : 0;
         const amountDep = idxDep >= 0 ? parseAmount(row[idxDep]) : 0;
+        const amountFrais = idxFrais >= 0 ? parseAmount(row[idxFrais]) : 0;
         if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? row[idxCat]  : '',
@@ -921,7 +943,7 @@ async function importExcel(arrayBuffer) {
             date: dateStr,
             transaction_no: idxTrNo >= 0 ? String(row[idxTrNo] || '') : '',
             category: split.category, type: split.type, description: split.description,
-            recette: amountRec, depense: amountDep
+            recette: amountRec, depense: amountDep, frais: amountFrais
         });
         imported++;
     }
@@ -975,7 +997,7 @@ function parsePDFMovements(text) {
         movements.push({
             date: isoDate, transaction_no: trNo,
             category: split.category, type: split.type, description: split.description,
-            recette: isIncome ? amount : 0, depense: isIncome ? 0 : amount
+            recette: isIncome ? amount : 0, depense: isIncome ? 0 : amount, frais: 0
         });
     }
     return movements;
@@ -989,7 +1011,8 @@ async function importJSON(text) {
             await apiCall('addMovement', {
                 date: m.date, transaction_no: m.transaction_no || '',
                 category: split.category, type: split.type, description: split.description,
-                recette: Number(m.recette) || 0, depense: Number(m.depense) || 0
+                recette: Number(m.recette) || 0, depense: Number(m.depense) || 0,
+                frais: Number(m.frais) || 0
             });
         }
         toast(`✅ ${data.length} importé(s)`, 'success');
