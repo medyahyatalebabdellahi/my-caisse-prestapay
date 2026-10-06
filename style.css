@@ -1,5 +1,6 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Styles v2.3
+   MY CAISSE PRESTAPAY — Styles v2.4
+   Features: FRAIS + MISSIONS + SETTINGS
    ========================================================= */
 :root{
     --violet:        #7C3AED;
@@ -30,7 +31,9 @@ html, body {
 a { color: var(--violet); text-decoration: none; }
 a:hover { color: var(--violet-dark); }
 
-/* LOGIN */
+/* =========================================================
+   LOGIN
+   ========================================================= */
 .login-body {
     min-height: 100vh; display: flex; align-items: center; justify-content: center;
     background: #FAFAFB; position: relative; overflow: hidden; padding: 24px;
@@ -302,7 +305,7 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
 /* Montants colorés */
 .amt-recette { color: var(--success); font-weight: 700; }
 .amt-depense { color: var(--danger);  font-weight: 700; }
-.amt-frais   { color: var(--warning); font-weight: 700; }   /* ✅ FRAIS */
+.amt-frais   { color: var(--warning); font-weight: 700; }
 .amt-solde   { color: var(--blue-dark); font-weight: 800; }
 
 .scroll-area { max-height: 62vh; overflow-y: auto; }
@@ -311,12 +314,13 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
 .tabs {
     display: flex; gap: 4px; background: var(--violet-light);
     padding: 5px; border-radius: var(--radius-sm); margin-bottom: 16px;
+    overflow-x: auto;
 }
 .tab {
     flex: 1; padding: 10px; border: none; background: transparent;
     border-radius: 8px; cursor: pointer; font-weight: 700;
     font-size: 13px; color: var(--violet-dark); font-family: var(--font);
-    transition: all .2s;
+    transition: all .2s; white-space: nowrap;
 }
 .tab.active {
     background: #fff; color: var(--violet);
@@ -325,7 +329,72 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
 .tab-panel { display: none; }
 .tab-panel.active { display: block; animation: fadeUp .3s ease; }
 
-/* Modal */
+/* =========================================================
+   MISSIONS TAB
+   ========================================================= */
+.missions-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--violet-light);
+    border-bottom: 1px solid var(--violet-light);
+}
+.mission-stat {
+    background: #fff;
+    padding: 14px 18px;
+    text-align: center;
+}
+.mission-stat .label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--violet-dark);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 4px;
+}
+.mission-stat .value {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--blue-dark);
+}
+.mission-stat.recette .value { color: var(--success); }
+.mission-stat.depense .value { color: var(--danger); }
+.mission-stat.solde {
+    background: linear-gradient(135deg, var(--violet), var(--violet-dark));
+}
+.mission-stat.solde .label { color: #E9D5FF; }
+.mission-stat.solde .value { color: #fff; }
+
+.badge-mission {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+}
+.mission-name {
+    font-weight: 700;
+    color: var(--violet-dark);
+    font-size: 13px;
+}
+.mission-desc {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 2px;
+    font-style: italic;
+}
+
+@media (max-width: 780px) {
+    .missions-stats { grid-template-columns: 1fr 1fr; }
+}
+
+/* =========================================================
+   MODAL
+   ========================================================= */
 .modal-overlay {
     position: fixed; inset: 0; background: rgba(15,23,42,.55);
     backdrop-filter: blur(4px); z-index: 1000; display: none;
@@ -385,6 +454,23 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
 .toast.error   { background: linear-gradient(135deg, #EF4444, var(--danger)); }
 .toast.warn    { background: linear-gradient(135deg, #F59E0B, var(--warning)); }
 
+/* =========================================================
+   TAB SETTINGS
+   ========================================================= */
+#tabSettings .card {
+    border: 2px solid var(--violet);
+}
+#tabSettings input[type="number"] {
+    font-size: 18px;
+    font-weight: 700;
+    text-align: right;
+    color: var(--violet-dark);
+}
+#tabSettings .btn-warning,
+#tabSettings .btn-danger {
+    min-width: 180px;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     .login-card { padding: 26px 22px; border-radius: 18px; }
@@ -393,4 +479,6 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
     .login-logo img { width: 90px; height: 90px; }
     .stats-banner { grid-template-columns: 1fr 1fr; padding: 16px; }
     .stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,.15); padding: 10px; }
+    .tabs { flex-direction: column; }
+    .tab { text-align: left; }
 }
