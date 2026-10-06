@@ -17,7 +17,7 @@ const CONFIG = {
        SERVER API URL
        Your Google Apps Script Web App URL
        --------------------------------------------------------- */
-    API_URL: "https://script.google.com/macros/s/AKfycbw-XRkHItMiD_IU_v2345sbCjDmTGhmiZPJNsGfyN_0AkJZiLRk8y23ctuJCjBQ96OE/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycby4K65BcbFHsjkfHvM4MnOfKNWw5jGQ0yZYcg2hyp901YK8f1Hb3ZZpqJtfLcPJtZZ3/exec",
 
     /* ---------------------------------------------------------
        LOCAL USERS (fallback if API is offline)
