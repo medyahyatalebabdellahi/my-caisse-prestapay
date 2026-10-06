@@ -3,13 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Caisse Prestapay — Connexion</title>
+<title>My Caisse Prestapay — Login</title>
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
 </head>
 <body class="login-body">
 
+    <!-- ============ LOGIN CARD ============ -->
     <div class="login-card">
+
         <div class="login-logo">
             <img src="logo.png" alt="My Caisse Prestapay" id="logoImg">
         </div>
@@ -24,50 +26,57 @@
 
         <p class="login-version">Version 2.0.0</p>
 
-        <form id="loginForm">
+        <form id="loginForm" autocomplete="on">
+
             <div class="field">
                 <span class="field-icon">👤</span>
-                <input type="text" id="username" placeholder="Yahya" required>
+                <input type="text" id="username" placeholder="Username"
+                       autocomplete="username" required>
             </div>
 
             <div class="field">
                 <span class="field-icon">🔒</span>
-                <input type="password" id="password" required>
-                <button type="button" class="toggle-pass" id="togglePass">👁</button>
+                <input type="password" id="password"
+                       autocomplete="current-password" required>
+                <button type="button" class="toggle-pass" id="togglePass"
+                        title="Show / Hide password">👁</button>
             </div>
 
             <div class="row-between">
                 <label class="checkbox">
                     <input type="checkbox" id="remember">
                     <span class="checkmark"></span>
-                    <span>Se souvenir de moi</span>
+                    <span>Remember me</span>
                 </label>
-                <a href="#" class="forgot">Mot de passe oublié ?</a>
+                <a href="#" class="forgot" id="forgotLink">Forgot password?</a>
             </div>
 
             <p class="login-error" id="loginError"></p>
 
             <button type="submit" class="btn-primary" id="loginBtn">
-                <span>🔐</span> Se connecter
+                <span>🔐</span> Sign In
             </button>
 
             <div class="secure-badge">
                 <span class="shield">🛡</span>
-                <span>Accès sécurisé</span>
+                <span>Secured Access</span>
             </div>
+
         </form>
     </div>
 
     <div class="wave-bg"></div>
 
     <div class="login-footer">
-        <p>Votre gestion de caisse,<br>plus simple et plus sûre !</p>
+        <p>Your cash management,<br>simpler and safer!</p>
     </div>
 
     <div class="toast" id="toast"></div>
 
 <script>
-// ============ Fallback Logo (SVG) ============
+/* =========================================================
+   FALLBACK LOGO (if logo.png is missing)
+   ========================================================= */
 const FALLBACK_LOGO = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
 <defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
 <stop offset='0' stop-color='%238B5CF6'/><stop offset='1' stop-color='%231E3A8A'/>
@@ -80,13 +89,17 @@ const FALLBACK_LOGO = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/200
 const logoEl = document.getElementById('logoImg');
 logoEl.onerror = () => { logoEl.onerror = null; logoEl.src = FALLBACK_LOGO; };
 
-// ============ Toggle Password ============
+/* =========================================================
+   TOGGLE PASSWORD VISIBILITY
+   ========================================================= */
 const passEl = document.getElementById('password');
 document.getElementById('togglePass').onclick = () => {
     passEl.type = passEl.type === 'password' ? 'text' : 'password';
 };
 
-// ============ Toast Notification ============
+/* =========================================================
+   TOAST NOTIFICATION
+   ========================================================= */
 function toast(msg, type = '') {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -95,65 +108,113 @@ function toast(msg, type = '') {
     toast._t = setTimeout(() => t.className = 'toast ' + type, 3000);
 }
 
-// ============ Login Handler ============
+/* =========================================================
+   LOGIN HANDLER
+   ========================================================= */
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const username = document.getElementById('username').value.trim().toUpperCase();
     const password = document.getElementById('password').value;
     const remember = document.getElementById('remember').checked;
-    const errEl = document.getElementById('loginError');
-    const btn = document.getElementById('loginBtn');
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginBtn');
 
     errEl.textContent = '';
 
+    /* ---------- Validation ---------- */
     if (!username || !password) {
-        errEl.textContent = 'Veuillez remplir tous les champs.';
+        errEl.textContent = 'Please fill in all fields.';
         return;
     }
 
     btn.disabled = true;
-    btn.innerHTML = '<span>⏳</span> Connexion...';
+    btn.innerHTML = '<span>⏳</span> Connecting...';
 
     try {
-        const res = await fetch(CONFIG.API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'login', username, password })
-        });
-        const data = await res.json();
+        let user = null;
 
-        if (!data.success) {
-            errEl.textContent = '❌ ' + (data.error || 'Erreur');
+        /* ---------- LOCAL MODE ---------- */
+        if (CONFIG.LOCAL_MODE) {
+            const u = CONFIG.LOCAL_USERS[username];
+            if (u && u.password === password) {
+                user = {
+                    username:    username,
+                    role:        u.role,
+                    permissions: u.permissions
+                };
+            }
+        }
+        /* ---------- SERVER MODE (Google Apps Script) ---------- */
+        else {
+            const res = await fetch(CONFIG.API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'login', username, password })
+            });
+            const data = await res.json();
+            if (data.success) user = data.user;
+        }
+
+        /* ---------- Authentication Failed ---------- */
+        if (!user) {
+            errEl.textContent = 'Invalid username or password.';
             passEl.value = '';
             passEl.focus();
             return;
         }
 
-        // ✅ Store token in sessionStorage (cleared on tab close)
-        sessionStorage.setItem('mycaisse_token', data.token);
-        localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify({
-            username: data.user.username,
-            role: data.user.role,
-            permissions: data.user.permissions,
-            loginAt: Date.now(),
-            remember,
-            expires: remember ? Date.now() + 30*24*3600*1000 : 0
-        }));
+        /* ---------- Save Session ---------- */
+        sessionStorage.setItem('mycaisse_token', 'local_token_' + Date.now());
 
-        if (remember) localStorage.setItem('mycaisse_remember_user', username);
+        const session = {
+            username:    user.username,
+            role:        user.role,
+            permissions: user.permissions,
+            loginAt:     Date.now(),
+            remember:    remember,
+            expires:     remember ? Date.now() + 30 * 24 * 3600 * 1000 : 0
+        };
+        localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify(session));
 
-        toast('✅ Connexion réussie', 'success');
+        if (remember) {
+            localStorage.setItem('mycaisse_remember_user', username);
+        } else {
+            localStorage.removeItem('mycaisse_remember_user');
+        }
+
+        /* ---------- Success ---------- */
+        toast('Login successful — Redirecting...', 'success');
         setTimeout(() => window.location.href = 'app.html', 600);
 
     } catch (err) {
         console.error(err);
-        errEl.textContent = '⚠️ Erreur de connexion.';
+        errEl.textContent = 'Connection error. Please try again.';
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span>🔐</span> Se connecter';
+        btn.innerHTML = '<span>🔐</span> Sign In';
     }
 });
+
+/* =========================================================
+   AUTO-FILL REMEMBERED USER
+   ========================================================= */
+(function autoFill() {
+    const remembered = localStorage.getItem('mycaisse_remember_user');
+    if (remembered) {
+        document.getElementById('username').value = remembered;
+        document.getElementById('remember').checked = true;
+        document.getElementById('password').focus();
+    }
+})();
+
+/* =========================================================
+   FORGOT PASSWORD LINK
+   ========================================================= */
+document.getElementById('forgotLink').onclick = (e) => {
+    e.preventDefault();
+    toast('Contact the administrator to reset your password.', 'warn');
+};
 </script>
 </body>
-</html
+</html>
