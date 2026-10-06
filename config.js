@@ -6,7 +6,7 @@
 const CONFIG = {
     LOCAL_MODE: false,
 
-    API_URL: "https://script.google.com/macros/s/AKfycbyQD-vilJjsz6fy8gM_X87tP6wITGWHbB34QDLm5g-QicaqfRHpcfdFN2TgfD84KmuW/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbxBvzmWxjWZxQ5E0hSBTOVPUQw2kpJCDslawZPmAuc4iNDi7iJNqEX6pXNAuzi7JIkN/exec",
 
     LOCAL_USERS: {
         "YAHYA": { password: "xx1234567", role: "admin", permissions: ["all"] },
