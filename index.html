@@ -22,7 +22,7 @@
             <span class="line"></span>
         </div>
 
-        <p class="login-version">Version 2.1.0</p>
+        <p class="login-version">Version 2.4.0</p>
 
         <form id="loginForm">
             <div class="field">
@@ -59,9 +59,11 @@
     </div>
 
     <div class="wave-bg"></div>
+
     <div class="login-footer">
         <p>Votre gestion de caisse,<br>plus simple et plus sûre !</p>
     </div>
+
     <div class="toast" id="toast"></div>
 
 <script>
@@ -92,11 +94,12 @@ function toast(msg, type = '') {
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const username = document.getElementById('username').value.trim().toUpperCase();
     const password = document.getElementById('password').value;
     const remember = document.getElementById('remember').checked;
-    const errEl    = document.getElementById('loginError');
-    const btn      = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
 
     errEl.textContent = '';
 
@@ -114,14 +117,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (CONFIG.LOCAL_MODE) {
             const u = CONFIG.LOCAL_USERS[username];
             if (u && u.password === password) {
-                user = { username: username, role: u.role, permissions: u.permissions };
+                user = { username, role: u.role, permissions: u.permissions };
             }
         } else {
-                        const params = new URLSearchParams({
-                action: 'login',
-                username: username,
-                password: password
-            });
+            const params = new URLSearchParams({ action: 'login', username, password });
             const res = await fetch(CONFIG.API_URL + '?' + params.toString(), {
                 method: 'GET',
                 redirect: 'follow'
@@ -131,7 +130,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 user = data.user;
                 sessionStorage.setItem('mycaisse_token', data.token);
             } else {
-                errEl.textContent = data.error || 'Échec de connexion';
+                errEl.textContent = data.error || 'Erreur';
                 passEl.value = '';
                 passEl.focus();
                 return;
@@ -139,35 +138,31 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         }
 
         if (!user) {
-            errEl.textContent = 'Nom d\'utilisateur ou mot de passe incorrect.';
+            errEl.textContent = 'Identifiants incorrects.';
             passEl.value = '';
             passEl.focus();
             return;
         }
 
-        if (CONFIG.LOCAL_MODE) {
-            sessionStorage.setItem('mycaisse_token', 'local_token_' + Date.now());
-        }
-
         const session = {
-            username:    user.username,
-            role:        user.role,
+            username: user.username,
+            role: user.role,
             permissions: user.permissions,
-            loginAt:     Date.now(),
-            remember:    remember,
-            expires:     remember ? Date.now() + 30 * 24 * 3600 * 1000 : 0
+            loginAt: Date.now(),
+            remember,
+            expires: remember ? Date.now() + 30 * 24 * 3600 * 1000 : 0
         };
         localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify(session));
 
         if (remember) localStorage.setItem('mycaisse_remember_user', username);
         else localStorage.removeItem('mycaisse_remember_user');
 
-        toast('Connexion réussie — Redirection...', 'success');
+        toast('Connexion réussie', 'success');
         setTimeout(() => window.location.href = 'app.html', 600);
 
     } catch (err) {
         console.error(err);
-        errEl.textContent = 'Erreur de connexion. Veuillez réessayer.';
+        errEl.textContent = 'Erreur de connexion.';
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>🔐</span> Se connecter';
@@ -185,7 +180,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
 document.getElementById('forgotLink').onclick = (e) => {
     e.preventDefault();
-    toast('Contactez l\'administrateur pour réinitialiser votre mot de passe.', 'warn');
+    toast('Contactez l\'administrateur.', 'warn');
 };
 </script>
 </body>
