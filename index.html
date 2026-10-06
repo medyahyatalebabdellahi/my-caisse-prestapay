@@ -9,9 +9,7 @@
 </head>
 <body class="login-body">
 
-    <!-- ============ LOGIN CARD ============ -->
     <div class="login-card">
-
         <div class="login-logo">
             <img src="logo.png" alt="My Caisse Prestapay" id="logoImg">
         </div>
@@ -26,20 +24,16 @@
 
         <p class="login-version">Version 2.0.0</p>
 
-        <form id="loginForm" autocomplete="on">
-
+        <form id="loginForm">
             <div class="field">
                 <span class="field-icon">👤</span>
-                <input type="text" id="username" placeholder="Username"
-                       autocomplete="username" required>
+                <input type="text" id="username" placeholder="Username" required>
             </div>
 
             <div class="field">
                 <span class="field-icon">🔒</span>
-                <input type="password" id="password"
-                       autocomplete="current-password" required>
-                <button type="button" class="toggle-pass" id="togglePass"
-                        title="Show / Hide password">👁</button>
+                <input type="password" id="password" required>
+                <button type="button" class="toggle-pass" id="togglePass">👁</button>
             </div>
 
             <div class="row-between">
@@ -61,22 +55,16 @@
                 <span class="shield">🛡</span>
                 <span>Secured Access</span>
             </div>
-
         </form>
     </div>
 
     <div class="wave-bg"></div>
-
     <div class="login-footer">
         <p>Your cash management,<br>simpler and safer!</p>
     </div>
-
     <div class="toast" id="toast"></div>
 
 <script>
-/* =========================================================
-   FALLBACK LOGO (if logo.png is missing)
-   ========================================================= */
 const FALLBACK_LOGO = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
 <defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
 <stop offset='0' stop-color='%238B5CF6'/><stop offset='1' stop-color='%231E3A8A'/>
@@ -89,17 +77,11 @@ const FALLBACK_LOGO = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/200
 const logoEl = document.getElementById('logoImg');
 logoEl.onerror = () => { logoEl.onerror = null; logoEl.src = FALLBACK_LOGO; };
 
-/* =========================================================
-   TOGGLE PASSWORD VISIBILITY
-   ========================================================= */
 const passEl = document.getElementById('password');
 document.getElementById('togglePass').onclick = () => {
     passEl.type = passEl.type === 'password' ? 'text' : 'password';
 };
 
-/* =========================================================
-   TOAST NOTIFICATION
-   ========================================================= */
 function toast(msg, type = '') {
     const t = document.getElementById('toast');
     t.textContent = msg;
@@ -108,12 +90,8 @@ function toast(msg, type = '') {
     toast._t = setTimeout(() => t.className = 'toast ' + type, 3000);
 }
 
-/* =========================================================
-   LOGIN HANDLER
-   ========================================================= */
 document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const username = document.getElementById('username').value.trim().toUpperCase();
     const password = document.getElementById('password').value;
     const remember = document.getElementById('remember').checked;
@@ -122,7 +100,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
     errEl.textContent = '';
 
-    /* ---------- Validation ---------- */
     if (!username || !password) {
         errEl.textContent = 'Please fill in all fields.';
         return;
@@ -134,29 +111,29 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     try {
         let user = null;
 
-        /* ---------- LOCAL MODE ---------- */
         if (CONFIG.LOCAL_MODE) {
             const u = CONFIG.LOCAL_USERS[username];
             if (u && u.password === password) {
-                user = {
-                    username:    username,
-                    role:        u.role,
-                    permissions: u.permissions
-                };
+                user = { username: username, role: u.role, permissions: u.permissions };
             }
-        }
-        /* ---------- SERVER MODE (Google Apps Script) ---------- */
-        else {
+        } else {
             const res = await fetch(CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'login', username, password })
             });
             const data = await res.json();
-            if (data.success) user = data.user;
+            if (data.success) {
+                user = data.user;
+                sessionStorage.setItem('mycaisse_token', data.token);
+            } else {
+                errEl.textContent = data.error || 'Login failed';
+                passEl.value = '';
+                passEl.focus();
+                return;
+            }
         }
 
-        /* ---------- Authentication Failed ---------- */
         if (!user) {
             errEl.textContent = 'Invalid username or password.';
             passEl.value = '';
@@ -164,8 +141,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
             return;
         }
 
-        /* ---------- Save Session ---------- */
-        sessionStorage.setItem('mycaisse_token', 'local_token_' + Date.now());
+        if (CONFIG.LOCAL_MODE) {
+            sessionStorage.setItem('mycaisse_token', 'local_token_' + Date.now());
+        }
 
         const session = {
             username:    user.username,
@@ -177,13 +155,9 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         };
         localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify(session));
 
-        if (remember) {
-            localStorage.setItem('mycaisse_remember_user', username);
-        } else {
-            localStorage.removeItem('mycaisse_remember_user');
-        }
+        if (remember) localStorage.setItem('mycaisse_remember_user', username);
+        else localStorage.removeItem('mycaisse_remember_user');
 
-        /* ---------- Success ---------- */
         toast('Login successful — Redirecting...', 'success');
         setTimeout(() => window.location.href = 'app.html', 600);
 
@@ -196,9 +170,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
 });
 
-/* =========================================================
-   AUTO-FILL REMEMBERED USER
-   ========================================================= */
 (function autoFill() {
     const remembered = localStorage.getItem('mycaisse_remember_user');
     if (remembered) {
@@ -208,9 +179,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     }
 })();
 
-/* =========================================================
-   FORGOT PASSWORD LINK
-   ========================================================= */
 document.getElementById('forgotLink').onclick = (e) => {
     e.preventDefault();
     toast('Contact the administrator to reset your password.', 'warn');
