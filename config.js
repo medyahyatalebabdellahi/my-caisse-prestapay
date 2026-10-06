@@ -19,7 +19,7 @@ const CONFIG = {
        ---------------------------------------------------------
        Your Google Apps Script Web App URL
        --------------------------------------------------------- */
-    API_URL: "https://script.google.com/macros/s/AKfycbyQD-vilJjsz6fy8gM_X87tP6wITGWHbB34QDLm5g-QicaqfRHpcfdFN2TgfD84KmuW/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbzFCvgIdWQvI-_kipIyLdZbe9wtnHiOeJCVWVTeArMkHnopjIABdyD9rqlOrwU-RtHC/exec",
 
     /* ---------------------------------------------------------
        LOCAL USERS (fallback when offline)
