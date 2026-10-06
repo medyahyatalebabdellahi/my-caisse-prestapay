@@ -50,11 +50,25 @@ function toast(msg, type='') {
    ========================================================= */
 async function apiCall(action, payload = {}) {
     if (CONFIG.LOCAL_MODE) return localApi(action, payload);
+
     const token = sessionStorage.getItem('mycaisse_token') || '';
-    const res = await fetch(CONFIG.API_URL + '?token=' + encodeURIComponent(token), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(Object.assign({ action }, payload))
+
+    // Build query string (GET is CORS-safe with Apps Script)
+    const params = new URLSearchParams();
+    params.append('action', action);
+    params.append('token', token);
+
+    // Add simple payload fields
+    Object.keys(payload).forEach(key => {
+        const value = payload[key];
+        if (value === null || value === undefined) return;
+        if (typeof value === 'object') return; // skip nested objects
+        params.append(key, String(value));
+    });
+
+    const res = await fetch(CONFIG.API_URL + '?' + params.toString(), {
+        method: 'GET',
+        redirect: 'follow'
     });
     return res.json();
 }
