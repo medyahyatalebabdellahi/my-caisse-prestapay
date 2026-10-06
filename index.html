@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Caisse Prestapay — Connexion</title>
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+</head>
+<body class="login-body">
+
+    <div class="login-card">
+        <div class="login-logo">
+            <img src="logo.png" alt="My Caisse Prestapay" id="logoImg">
+        </div>
+
+        <h1 class="login-title">My Caisse</h1>
+
+        <div class="login-subtitle">
+            <span class="line"></span>
+            <span class="text">Prestapay</span>
+            <span class="line"></span>
+        </div>
+
+        <p class="login-version">Version 2.0.0</p>
+
+        <form id="loginForm">
+            <div class="field">
+                <span class="field-icon">👤</span>
+                <input type="text" id="username" placeholder="Yahya" required>
+            </div>
+
+            <div class="field">
+                <span class="field-icon">🔒</span>
+                <input type="password" id="password" required>
+                <button type="button" class="toggle-pass" id="togglePass">👁</button>
+            </div>
+
+            <div class="row-between">
+                <label class="checkbox">
+                    <input type="checkbox" id="remember">
+                    <span class="checkmark"></span>
+                    <span>Se souvenir de moi</span>
+                </label>
+                <a href="#" class="forgot">Mot de passe oublié ?</a>
+            </div>
+
+            <p class="login-error" id="loginError"></p>
+
+            <button type="submit" class="btn-primary" id="loginBtn">
+                <span>🔐</span> Se connecter
+            </button>
+
+            <div class="secure-badge">
+                <span class="shield">🛡</span>
+                <span>Accès sécurisé</span>
+            </div>
+        </form>
+    </div>
+
+    <div class="wave-bg"></div>
+
+    <div class="login-footer">
+        <p>Votre gestion de caisse,<br>plus simple et plus sûre !</p>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+<script>
+// ============ Fallback Logo (SVG) ============
+const FALLBACK_LOGO = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
+<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>
+<stop offset='0' stop-color='%238B5CF6'/><stop offset='1' stop-color='%231E3A8A'/>
+</linearGradient></defs>
+<rect x='10' y='10' width='80' height='80' rx='20' fill='url(%23g)'/>
+<path d='M35 72V28h18a14 14 0 0 1 0 28h-8v16z' fill='white'/>
+<circle cx='53' cy='42' r='6' fill='%231E3A8A'/>
+</svg>`;
+
+const logoEl = document.getElementById('logoImg');
+logoEl.onerror = () => { logoEl.onerror = null; logoEl.src = FALLBACK_LOGO; };
+
+// ============ Toggle Password ============
+const passEl = document.getElementById('password');
+document.getElementById('togglePass').onclick = () => {
+    passEl.type = passEl.type === 'password' ? 'text' : 'password';
+};
+
+// ============ Toast Notification ============
+function toast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show ' + type;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.className = 'toast ' + type, 3000);
+}
+
+// ============ Login Handler ============
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value.trim().toUpperCase();
+    const password = document.getElementById('password').value;
+    const remember = document.getElementById('remember').checked;
+    const errEl = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+
+    errEl.textContent = '';
+
+    if (!username || !password) {
+        errEl.textContent = 'Veuillez remplir tous les champs.';
+        return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Connexion...';
+
+    try {
+        const res = await fetch(CONFIG.API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'login', username, password })
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            errEl.textContent = '❌ ' + (data.error || 'Erreur');
+            passEl.value = '';
+            passEl.focus();
+            return;
+        }
+
+        // ✅ Store token in sessionStorage (cleared on tab close)
+        sessionStorage.setItem('mycaisse_token', data.token);
+        localStorage.setItem(CONFIG.SESSION_KEY, JSON.stringify({
+            username: data.user.username,
+            role: data.user.role,
+            permissions: data.user.permissions,
+            loginAt: Date.now(),
+            remember,
+            expires: remember ? Date.now() + 30*24*3600*1000 : 0
+        }));
+
+        if (remember) localStorage.setItem('mycaisse_remember_user', username);
+
+        toast('✅ Connexion réussie', 'success');
+        setTimeout(() => window.location.href = 'app.html', 600);
+
+    } catch (err) {
+        console.error(err);
+        errEl.textContent = '⚠️ Erreur de connexion.';
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔐</span> Se connecter';
+    }
+});
+</script>
+</body>
+</html

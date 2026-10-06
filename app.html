@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Caisse Prestapay — Tableau de bord</title>
+<link rel="stylesheet" href="style.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+
+<header class="app-header">
+    <div class="brand">
+        <img src="logo.png" alt="" onerror="this.style.display='none'">
+        <span>MY CAISSE <span style="color:#A78BFA">PRESTAPAY</span></span>
+    </div>
+    <div class="user-info">
+        <div class="avatar" id="userAvatar">U</div>
+        <div style="text-align:right;line-height:1.2">
+            <div style="font-weight:700" id="userName">Utilisateur</div>
+            <div style="font-size:11px;opacity:.8" id="userRole">—</div>
+        </div>
+        <button class="btn-ghost" id="btnLogout">🚪 Déconnexion</button>
+    </div>
+</header>
+
+<div class="stats-banner">
+    <div class="stat">
+        <div class="label">Solde début</div>
+        <div class="value" id="statOpening">0 MRU</div>
+    </div>
+    <div class="stat recette">
+        <div class="label">Total Recettes</div>
+        <div class="value" id="statRecettes">0 MRU</div>
+    </div>
+    <div class="stat depense">
+        <div class="label">Total Dépenses</div>
+        <div class="value" id="statDepenses">0 MRU</div>
+    </div>
+    <div class="stat final">
+        <div class="label">Solde final</div>
+        <div class="value" id="statFinal">0 MRU</div>
+    </div>
+</div>
+
+<div class="app-container">
+    <aside>
+        <div class="card" data-add-only>
+            <div class="card-header" id="formTitle">Nouveau mouvement</div>
+            <div class="card-body">
+                <div class="radio-group" id="opTypeGroup">
+                    <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Dépense</span></label>
+                    <label><input type="radio" name="opType" value="Recette"><span>💰 Recette</span></label>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="text" id="inpDate" class="form-control" placeholder="JJ/MM/AAAA">
+                </div>
+                <div class="form-group">
+                    <label>N° Transaction</label>
+                    <input type="text" id="inpTransaction" class="form-control" placeholder="TR...">
+                </div>
+                <div class="form-group">
+                    <label>Catégorie</label>
+                    <select id="selCategory" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label>Type</label>
+                    <select id="selType" class="form-control"></select>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="inpDescription" class="form-control" placeholder="Libellé…">
+                </div>
+                <div class="form-group">
+                    <label>Montant (MRU)</label>
+                    <input type="number" id="inpAmount" class="form-control" placeholder="0.00" step="0.01">
+                </div>
+                <div style="display:flex;gap:8px;margin-top:10px">
+                    <button class="btn btn-violet btn-block" id="btnSave">➕ Ajouter</button>
+                    <button class="btn btn-gray" id="btnClear">Effacer</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">📥 Importer un fichier</div>
+            <div class="card-body">
+                <label class="upload-zone" for="fileInput">
+                    <div style="font-size:28px">📄</div>
+                    <div style="font-weight:700;color:var(--violet-dark);margin-top:6px">
+                        Cliquez ou déposez un fichier
+                    </div>
+                    <div style="font-size:11px;color:var(--gray);margin-top:4px">
+                        Formats supportés : CSV, JSON
+                    </div>
+                    <input type="file" id="fileInput" accept=".csv,.json">
+                </label>
+            </div>
+        </div>
+    </aside>
+
+    <main>
+        <div class="tabs">
+            <button class="tab active" data-tab="tabMovements">📊 Mouvements</button>
+            <button class="tab" data-tab="tabUsers" data-admin-only>👥 Utilisateurs</button>
+        </div>
+
+        <div class="tab-panel active" id="tabMovements">
+            <div class="table-wrap">
+                <div class="table-toolbar">
+                    <span style="font-weight:700;color:var(--violet-dark)">Du</span>
+                    <input type="text" id="filterFrom" class="form-control" style="width:120px">
+                    <span style="font-weight:700;color:var(--violet-dark)">Au</span>
+                    <input type="text" id="filterTo" class="form-control" style="width:120px">
+                    <button class="btn btn-violet" id="btnFilter">🔍 Filtrer</button>
+                    <input type="text" id="searchInput" class="form-control"
+                           style="flex:1;min-width:180px" placeholder="🔎 Rechercher…">
+                    <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+                        <button class="btn btn-success" data-export="excel">📗 Excel</button>
+                        <button class="btn btn-blue"    data-export="word">📘 Word</button>
+                        <button class="btn btn-danger"  data-export="pdf">📕 PDF</button>
+                        <button class="btn btn-gray"    data-export="csv">📄 CSV</button>
+                    </span>
+                </div>
+                <div class="scroll-area">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>Date</th><th>N° Transaction</th><th>Catégorie</th>
+                                <th>Type</th><th>Description</th>
+                                <th style="text-align:right">Recettes</th>
+                                <th style="text-align:right">Dépenses</th>
+                                <th style="text-align:right">Solde</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="movTbody"></tbody>
+                    </table>
+                </div>
+                <div style="padding:10px 16px;background:var(--violet-light);
+                            font-size:12px;color:var(--violet-dark);font-weight:600"
+                     id="movCount">0 ligne(s)</div>
+            </div>
+        </div>
+
+        <div class="tab-panel" id="tabUsers">
+            <div class="table-wrap">
+                <div class="table-toolbar">
+                    <span style="font-weight:700;color:var(--violet-dark)">
+                        👥 Gestion des utilisateurs
+                    </span>
+                    <button class="btn btn-violet" id="btnAddUser"
+                            style="margin-left:auto">➕ Nouvel utilisateur</button>
+                </div>
+                <table class="data">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Nom d'utilisateur</th><th>Rôle</th>
+                            <th>Permissions</th><th>Statut</th><th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="userModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="userModalTitle">Nouvel utilisateur</h3>
+            <button class="modal-close" id="userModalClose">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Nom d'utilisateur</label>
+                <input type="text" id="inpUserName" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Mot de passe</label>
+                <input type="text" id="inpUserPass" class="form-control">
+            </div>
+            <div class="form-group">
+                <label>Rôle</label>
+                <select id="selUserRole" class="form-control">
+                    <option value="user">Utilisateur</option>
+                    <option value="admin">Administrateur</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Permissions</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="view"> Voir
+                    </label>
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="add"> Ajouter
+                    </label>
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="edit"> Modifier
+                    </label>
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="delete"> Supprimer
+                    </label>
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="export"> Exporter
+                    </label>
+                    <label style="display:flex;gap:6px;align-items:center;font-weight:500;text-transform:none">
+                        <input type="checkbox" class="perm-check" value="manage_users"> Gérer utilisateurs
+                    </label>
+                </div>
+            </div>
+            <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
+                <input type="checkbox" id="chkActive" checked> Compte actif
+            </label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-gray" onclick="document.getElementById('userModal').classList.remove('open')">Annuler</button>
+            <button class="btn btn-violet" id="btnSaveUser">💾 Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>
