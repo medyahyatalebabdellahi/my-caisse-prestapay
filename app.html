@@ -50,8 +50,10 @@
                     <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Dépense</span></label>
                     <label><input type="radio" name="opType" value="Recette"><span>💰 Recette</span></label>
                 </div>
-                <div class="form-group"><label>DATE</label>
-                    <input type="text" id="inpDate" class="form-control" placeholder="JJ/MM/AAAA"></div>
+                <div class="form-group">
+                    <label>📅 DATE</label>
+                    <input type="date" id="inpDate" class="form-control date-input">
+                </div>
                 <div class="form-group"><label>N° TRANSACTION</label>
                     <input type="text" id="inpTransaction" class="form-control" placeholder="TR..."></div>
                 <div class="form-group"><label>CATÉGORIE</label>
@@ -91,7 +93,6 @@
     <main>
         <div class="tabs">
             <button class="tab active" data-tab="tabMovements">📊 Mouvements</button>
-            <button class="tab" data-tab="tabMissions">🎯 Missions</button>
             <button class="tab" data-tab="tabReport">📈 Rapport Mensuel</button>
             <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Catégories & Types</button>
             <button class="tab" data-tab="tabUsers" data-admin-only>👥 Utilisateurs</button>
@@ -102,13 +103,14 @@
         <div class="tab-panel active" id="tabMovements">
             <div class="table-wrap">
                 <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark)">Du</span>
-                    <input type="text" id="filterFrom" class="form-control" style="width:120px">
+                    <span style="font-weight:700;color:var(--violet-dark)">📅 Du</span>
+                    <input type="date" id="filterFrom" class="form-control date-input" style="width:150px">
                     <span style="font-weight:700;color:var(--violet-dark)">Au</span>
-                    <input type="text" id="filterTo" class="form-control" style="width:120px">
+                    <input type="date" id="filterTo" class="form-control date-input" style="width:150px">
                     <button class="btn btn-violet" id="btnFilter">🔍 Filtrer</button>
+                    <button class="btn btn-gray" id="btnResetFilter">↺ Reset</button>
                     <input type="text" id="searchInput" class="form-control"
-                           style="flex:1;min-width:180px" placeholder="🔎 Rechercher...">
+                           style="flex:1;min-width:150px" placeholder="🔎 Rechercher...">
                     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
                         <button class="btn btn-success" data-export="excel">📗 Excel</button>
                         <button class="btn btn-blue"    data-export="word">📘 Word</button>
@@ -141,66 +143,6 @@
             </div>
         </div>
 
-        <!-- MISSIONS -->
-        <div class="tab-panel" id="tabMissions">
-            <div class="table-wrap">
-                <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark);font-size:16px">
-                        🎯 Suivi des Missions
-                    </span>
-                    <span style="font-weight:700;color:var(--violet-dark)">Du</span>
-                    <input type="text" id="missionFrom" class="form-control" style="width:120px">
-                    <span style="font-weight:700;color:var(--violet-dark)">Au</span>
-                    <input type="text" id="missionTo" class="form-control" style="width:120px">
-                    <button class="btn btn-violet" id="btnFilterMissions">🔍 Filtrer</button>
-                    <input type="text" id="missionSearch" class="form-control"
-                           style="flex:1;min-width:180px" placeholder="🔎 Rechercher une mission...">
-                    <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn btn-success" id="btnMissionExcel">📗 Excel</button>
-                        <button class="btn btn-danger"  id="btnMissionPDF">📕 PDF</button>
-                    </span>
-                </div>
-
-                <div class="missions-stats">
-                    <div class="mission-stat">
-                        <div class="label">TOTAL MISSIONS</div>
-                        <div class="value" id="missionCount">0</div>
-                    </div>
-                    <div class="mission-stat recette">
-                        <div class="label">RECETTES MISSIONS</div>
-                        <div class="value" id="missionRecettes">0 MRU</div>
-                    </div>
-                    <div class="mission-stat depense">
-                        <div class="label">DÉPENSES MISSIONS</div>
-                        <div class="value" id="missionDepenses">0 MRU</div>
-                    </div>
-                    <div class="mission-stat solde">
-                        <div class="label">SOLDE MISSIONS</div>
-                        <div class="value" id="missionBalance">0 MRU</div>
-                    </div>
-                </div>
-
-                <div class="scroll-area">
-                    <table class="data">
-                        <thead>
-                            <tr>
-                                <th>DATE</th>
-                                <th>N° TRANSACTION</th>
-                                <th>NOM DE LA MISSION</th>
-                                <th style="text-align:right">RECETTES</th>
-                                <th style="text-align:right">DÉPENSES</th>
-                                <th>ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody id="missionsTbody"></tbody>
-                    </table>
-                </div>
-                <div style="padding:10px 16px;background:var(--violet-light);
-                            font-size:12px;color:var(--violet-dark);font-weight:600"
-                     id="missionsFoot">0 mission(s)</div>
-            </div>
-        </div>
-
         <!-- RAPPORT MENSUEL -->
         <div class="tab-panel" id="tabReport">
             <div class="card">
@@ -209,7 +151,7 @@
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
                         <div class="form-group"><label>MOIS</label>
                             <input type="month" id="reportMonth" class="form-control"></div>
-                        <div class="form-group"><label>CATÉGORIES (sélection multiple)</label>
+                        <div class="form-group"><label>CATÉGORIES (multi-sélection)</label>
                             <select id="reportCategories" class="form-control" multiple
                                     style="height:auto;min-height:42px;padding:6px"></select></div>
                     </div>
@@ -283,33 +225,30 @@
             </div>
         </div>
 
-        <!-- PARAMÈTRES (ADMIN UNIQUEMENT) -->
+        <!-- PARAMÈTRES -->
         <div class="tab-panel" id="tabSettings">
-            <div class="card" style="max-width:700px;margin:0 auto">
+            <div class="card">
                 <div class="card-header">⚙️ Paramètres Généraux (Admin uniquement)</div>
                 <div class="card-body">
 
                     <div style="background:var(--violet-light);padding:18px;border-radius:12px;margin-bottom:18px">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
                             <div>
-                                <div style="font-size:13px;font-weight:700;color:var(--blue-dark);text-transform:uppercase">
-                                    💰 Solde Début (Report de la période précédente)
+                                <div style="font-weight:700;color:var(--violet-dark);font-size:15px">
+                                    💰 SOLDE DÉBUT (Report de la période précédente)
                                 </div>
-                                <div style="font-size:11px;color:var(--gray);margin-top:4px">
+                                <div style="font-size:12px;color:var(--gray);margin-top:4px">
                                     Ce montant est utilisé comme point de départ pour le calcul du solde
                                 </div>
                             </div>
-                            <div style="font-size:22px;font-weight:800;color:var(--violet-dark)"
-                                 id="currentOpeningBalance">
+                            <div style="font-size:24px;font-weight:800;color:var(--violet-dark)" id="currentOpeningBalance">
                                 0,00 MRU
                             </div>
                         </div>
-                        <div style="display:flex;gap:8px">
+                        <div style="display:flex;gap:8px;margin-top:12px">
                             <input type="number" id="inpOpeningBalance" class="form-control"
                                    placeholder="0.00" step="0.01" style="flex:1">
-                            <button class="btn btn-violet" id="btnSaveOpening">
-                                💾 Enregistrer
-                            </button>
+                            <button class="btn btn-violet" id="btnSaveOpening">💾 Enregistrer</button>
                         </div>
                         <div style="font-size:11px;color:var(--warning);margin-top:8px">
                             ⚠️ Modifier cette valeur affecte le calcul du solde final de tous les mois
@@ -317,10 +256,10 @@
                     </div>
 
                     <div style="background:var(--gray-light);padding:18px;border-radius:12px;margin-bottom:18px">
-                        <div style="font-size:13px;font-weight:700;color:var(--blue-dark);text-transform:uppercase;margin-bottom:12px">
-                            ℹ️ Informations Système
+                        <div style="font-weight:700;color:var(--blue-dark);font-size:14px;margin-bottom:10px">
+                            ℹ️ INFORMATIONS SYSTÈME
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
                             <div><span style="color:var(--gray)">Application :</span> <strong id="infoAppName">—</strong></div>
                             <div><span style="color:var(--gray)">Version :</span> <strong id="infoVersion">—</strong></div>
                             <div><span style="color:var(--gray)">Mode :</span> <strong id="infoMode">—</strong></div>
@@ -328,19 +267,25 @@
                         </div>
                     </div>
 
-                    <div style="background:#FEF2F2;border:2px solid #FCA5A5;padding:18px;border-radius:12px">
-                        <div style="font-size:13px;font-weight:700;color:var(--danger);text-transform:uppercase;margin-bottom:12px">
-                            ⚠️ Zone Dangereuse
+                    <div style="background:#FEF2F2;border:2px solid var(--danger);padding:18px;border-radius:12px">
+                        <div style="font-weight:700;color:var(--danger);font-size:15px;margin-bottom:10px">
+                            ⚠️ ZONE DANGEREUSE
                         </div>
-                        <div style="font-size:12px;color:#7F1D1D;margin-bottom:12px">
-                            Ces actions sont irréversibles. Utilisez-les avec précaution.
+                        <div style="font-size:13px;color:#991B1B;margin-bottom:14px">
+                            Ces actions sont <strong>irréversibles</strong>. Utilisez-les avec précaution.
                         </div>
-                        <div style="display:flex;gap:8px;flex-wrap:wrap">
-                            <button class="btn btn-warning" id="btnRecalcBalance">🔄 Recalculer Solde Global</button>
-                            <button class="btn btn-danger" id="btnExportBackup">💾 Exporter Sauvegarde JSON</button>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap">
+                            <button class="btn btn-warning" id="btnRecalcBalance">
+                                🔄 Recalculer Solde Global
+                            </button>
+                            <button class="btn btn-danger" id="btnDeleteAllMvt">
+                                🗑️ SUPPRIMER TOUS LES MOUVEMENTS
+                            </button>
+                            <button class="btn btn-gray" id="btnExportBackup">
+                                💾 Exporter Sauvegarde JSON
+                            </button>
                         </div>
                     </div>
-
                 </div>
             </div>
         </div>
