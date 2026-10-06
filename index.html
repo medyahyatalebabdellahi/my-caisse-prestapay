@@ -117,10 +117,14 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 user = { username: username, role: u.role, permissions: u.permissions };
             }
         } else {
-            const res = await fetch(CONFIG.API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'login', username, password })
+                        const params = new URLSearchParams({
+                action: 'login',
+                username: username,
+                password: password
+            });
+            const res = await fetch(CONFIG.API_URL + '?' + params.toString(), {
+                method: 'GET',
+                redirect: 'follow'
             });
             const data = await res.json();
             if (data.success) {
