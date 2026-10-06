@@ -1,6 +1,6 @@
 /* =========================================================
    MY CAISSE PRESTAPAY — Configuration File
-   Version: 2.0.0
+   Version: 2.1.0
    Author : YAHYA TALEB ABDELLAHI
    ========================================================= */
 
@@ -8,21 +8,19 @@ const CONFIG = {
 
     /* ---------------------------------------------------------
        MODE SELECTION
-       ---------------------------------------------------------
        LOCAL_MODE: true  → Offline (browser storage)
-       LOCAL_MODE: false → Uses Google Apps Script + Sheets
+       LOCAL_MODE: false → Google Apps Script + Google Sheets
        --------------------------------------------------------- */
     LOCAL_MODE: false,
 
     /* ---------------------------------------------------------
        SERVER API URL
-       ---------------------------------------------------------
        Your Google Apps Script Web App URL
        --------------------------------------------------------- */
-    API_URL: "https://script.google.com/macros/s/AKfycbzFCvgIdWQvI-_kipIyLdZbe9wtnHiOeJCVWVTeArMkHnopjIABdyD9rqlOrwU-RtHC/exec",
+    API_URL: "https://script.google.com/macros/s/AKfycbyQD-vilJjsz6fy8gM_X87tP6wITGWHbB34QDLm5g-QicaqfRHpcfdFN2TgfD84KmuW/exec",
 
     /* ---------------------------------------------------------
-       LOCAL USERS (fallback when offline)
+       LOCAL USERS (fallback if API is offline)
        --------------------------------------------------------- */
     LOCAL_USERS: {
         "YAHYA": {
@@ -38,15 +36,27 @@ const CONFIG = {
     },
 
     /* ---------------------------------------------------------
+       DEFAULT CATEGORIES (only used in LOCAL mode)
+       --------------------------------------------------------- */
+    DEFAULT_CATEGORIES: [
+        { name: "SALAIRES",               kind: "Dépenses" },
+        { name: "TÉLÉPHONE",              kind: "Dépenses" },
+        { name: "SERVICES PUBLICS",       kind: "Dépenses" },
+        { name: "AVANCES SUR SALAIRE",    kind: "Dépenses" },
+        { name: "PROSPECTEURS LOCAUX",    kind: "Dépenses" },
+        { name: "PRIMES AIDE",            kind: "Dépenses" },
+        { name: "DONATIONS & MOTIVATION", kind: "Dépenses" },
+        { name: "AUTRES DÉPENSES",        kind: "Dépenses" },
+        { name: "RECETTES DIVERSES",      kind: "Recettes" },
+        { name: "VENTES",                 kind: "Recettes" }
+    ],
+
+    /* ---------------------------------------------------------
        APPLICATION METADATA
        --------------------------------------------------------- */
     APP_NAME:    "My Caisse Prestapay",
-    APP_VERSION: "2.0.0",
+    APP_VERSION: "2.1.0",
     APP_AUTHOR:  "YAHYA TALEB ABDELLAHI",
     CURRENCY:    "MRU",
-
-    /* ---------------------------------------------------------
-       SESSION STORAGE KEY
-       --------------------------------------------------------- */
     SESSION_KEY: "mycaisse_session_v2"
 };
