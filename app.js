@@ -1,6 +1,5 @@
 /* =========================================================
    MY CAISSE PRESTAPAY — Application Logic v2.4
-   Features: FRAIS + MISSIONS + SETTINGS
    ========================================================= */
 
 const SESSION = (() => {
@@ -18,7 +17,6 @@ function hasPerm(p) {
     return SESSION.permissions?.includes(p) || false;
 }
 
-/* ---------- Utilities ---------- */
 const fmtMoney = (v) => {
     const n = Number(v || 0);
     return n.toLocaleString('fr-FR', { minimumFractionDigits: 2,
@@ -31,14 +29,12 @@ const fmtDate = (s) => {
     return String(d.getDate()).padStart(2,'0') + '/' +
            String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
 };
-const todayISO  = () => new Date().toISOString().slice(0,10);
-const toISODate = (fr) => { const [d,m,y] = fr.split('/'); return `${y}-${m}-${d}`; };
-const toFRDate  = (iso) => { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
+const todayISO = () => new Date().toISOString().slice(0,10);
+const isoToFR = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; };
 
 function toast(msg, type='') {
     let t = document.querySelector('.toast');
-    if (!t) { t = document.createElement('div'); t.className = 'toast';
-              document.body.appendChild(t); }
+    if (!t) { t = document.createElement('div'); t.className = 'toast'; document.body.appendChild(t); }
     t.textContent = msg;
     t.className = 'toast show ' + type;
     clearTimeout(toast._t);
@@ -46,24 +42,7 @@ function toast(msg, type='') {
 }
 
 /* =========================================================
-   MISSIONS — Configuration
-   ========================================================= */
-const MISSION_CATEGORIES = [
-    'MISSION',
-    'MISSIONS',
-    'MISSION LOCALE',
-    'MISSION NATIONALE'
-];
-
-function isMissionCategory(category) {
-    if (!category) return false;
-    const cat = String(category).toUpperCase().trim();
-    return MISSION_CATEGORIES.some(m => cat === m.toUpperCase()) ||
-           cat.startsWith('MISSION ');
-}
-
-/* =========================================================
-   API CLIENT
+   API CLIENT — Cache Busting
    ========================================================= */
 async function apiCall(action, payload = {}) {
     if (CONFIG.LOCAL_MODE) return localApi(action, payload);
@@ -71,6 +50,7 @@ async function apiCall(action, payload = {}) {
     const params = new URLSearchParams();
     params.append('action', action);
     params.append('token', token);
+    params.append('_t', Date.now() + '_' + Math.random().toString(36).slice(2));
     Object.keys(payload).forEach(key => {
         const value = payload[key];
         if (value === null || value === undefined) return;
@@ -78,13 +58,14 @@ async function apiCall(action, payload = {}) {
         params.append(key, String(value));
     });
     const res = await fetch(CONFIG.API_URL + '?' + params.toString(), {
-        method: 'GET', redirect: 'follow'
+        method: 'GET', redirect: 'follow', cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
     });
     return res.json();
 }
 
 /* =========================================================
-   LOCAL DB
+   LOCAL DB (fallback)
    ========================================================= */
 const LocalDB = {
     _key: 'mycaisse_data_v3',
@@ -99,8 +80,7 @@ const LocalDB = {
     _seed() {
         const data = {
             categories: (CONFIG.DEFAULT_CATEGORIES || []).map((c,i) => ({
-                id: i + 1, name: c.name, kind: c.kind, position: i
-            })),
+                id: i + 1, name: c.name, kind: c.kind, position: i })),
             types: [], movements: [], settings: { opening_balance: 0 }
         };
         localStorage.setItem(this._key, JSON.stringify(data));
@@ -122,9 +102,7 @@ const LocalDB = {
         d.categories = d.categories.filter(c => c.id !== id);
         d.types = d.types.filter(t => String(t.category_id) !== String(id));
         d.movements.forEach(m => {
-            if (String(m.category).toUpperCase() === String(name).toUpperCase()) {
-                m.category = ''; m.type = '';
-            }
+            if (String(m.category).toUpperCase() === String(name).toUpperCase()) m.category = '';
         });
         this._save();
     },
@@ -136,8 +114,7 @@ const LocalDB = {
     deleteType(id) { const d = this._load(); d.types = d.types.filter(t => t.id !== id); this._save(); },
     getMovements(from, to) {
         const d = this._load();
-        return d.movements
-            .filter(m => (!from || m.date >= from) && (!to || m.date <= to))
+        return d.movements.filter(m => (!from || m.date >= from) && (!to || m.date <= to))
             .sort((a,b) => a.date.localeCompare(b.date) || a.id - b.id);
     },
     addMovement(m) { const d = this._load(); m.id = Date.now(); d.movements.push(m); this._save(); return m; },
@@ -147,6 +124,7 @@ const LocalDB = {
         if (i >= 0) { d.movements[i] = { ...d.movements[i], ...m }; this._save(); }
     },
     deleteMovement(id) { const d = this._load(); d.movements = d.movements.filter(m => m.id !== id); this._save(); },
+    deleteAllMovements() { const d = this._load(); d.movements = []; this._save(); },
     getOpeningBalance() { return Number(this._load().settings.opening_balance || 0); },
     setOpeningBalance(v) { this._load().settings.opening_balance = Number(v); this._save(); }
 };
@@ -176,6 +154,10 @@ function localApi(action, payload) {
         case 'addMovement': return { success: true, id: LocalDB.addMovement(payload).id };
         case 'updateMovement': LocalDB.updateMovement(payload.id, payload); return { success: true };
         case 'deleteMovement': LocalDB.deleteMovement(payload.id); return { success: true };
+        case 'deleteAllMovements': {
+            LocalDB.deleteAllMovements();
+            return { success: true, deleted: 0, message: 'Tous supprimés' };
+        }
         case 'getSetting': return { success: true, value: LocalDB.getOpeningBalance() };
         case 'setSetting': LocalDB.setOpeningBalance(payload.value); return { success: true };
         case 'getUsers': return { success: true, users: [] };
@@ -212,17 +194,17 @@ async function refreshBanner() {
     const recettes = mvts.reduce((s,m) => s + Number(m.recette||0), 0);
     const depenses = mvts.reduce((s,m) => s + Number(m.depense||0), 0);
     const frais    = mvts.reduce((s,m) => s + Number(m.frais||0), 0);
+
     document.getElementById('statOpening').textContent = fmtMoney(opening);
     document.getElementById('statRecettes').textContent = fmtMoney(recettes);
     document.getElementById('statDepenses').textContent = fmtMoney(depenses);
-    const fraisEl = document.getElementById('statFrais');
-    if (fraisEl) fraisEl.textContent = fmtMoney(frais);
+    document.getElementById('statFrais').textContent = fmtMoney(frais);
     document.getElementById('statFinal').textContent =
         fmtMoney(opening + recettes - depenses - frais);
 }
 
 /* =========================================================
-   CATÉGORIE & TYPE
+   SELECTS
    ========================================================= */
 async function refreshCategorySelect() {
     const kind = document.querySelector('input[name="opType"]:checked').value + 's';
@@ -260,11 +242,9 @@ async function refreshTypeSelect() {
 let CURRENT_EDIT_ID = null;
 
 async function refreshMovements() {
-    const from = document.getElementById('filterFrom').value;
-    const to   = document.getElementById('filterTo').value;
+    const isoFrom = document.getElementById('filterFrom').value || null;
+    const isoTo   = document.getElementById('filterTo').value || null;
     const q    = document.getElementById('searchInput').value.trim().toLowerCase();
-    const isoFrom = from ? toISODate(from) : null;
-    const isoTo   = to ? toISODate(to) : null;
 
     const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
     let list = res.movements || [];
@@ -312,13 +292,13 @@ function clearForm() {
     document.getElementById('inpDescription').value = '';
     document.getElementById('inpAmount').value = '';
     document.getElementById('inpFrais').value = '0';
-    document.getElementById('inpDate').value = toFRDate(todayISO());
+    document.getElementById('inpDate').value = todayISO();
     document.getElementById('formTitle').textContent = 'Nouveau Mouvement';
     document.getElementById('btnSave').textContent = '➕ Ajouter';
 }
 
 async function saveMovement() {
-    const dateFR = document.getElementById('inpDate').value;
+    const isoDate = document.getElementById('inpDate').value;
     const trNo   = document.getElementById('inpTransaction').value.trim();
     const desc   = document.getElementById('inpDescription').value.trim();
     const amount = parseFloat(document.getElementById('inpAmount').value.replace(',', '.')) || 0;
@@ -329,11 +309,11 @@ async function saveMovement() {
     const typeName = typeSel.options[typeSel.selectedIndex]?.dataset?.name || '';
     const type   = document.querySelector('input[name="opType"]:checked').value;
 
-    if (!dateFR || amount <= 0) { toast('⚠️ Date et montant obligatoires.', 'warn'); return; }
+    if (!isoDate) { toast('⚠️ Sélectionnez une date', 'warn'); return; }
+    if (amount <= 0) { toast('⚠️ Entrez un montant > 0', 'warn'); return; }
 
-    const iso = toISODate(dateFR);
     const mvt = {
-        date: iso, transaction_no: trNo, category: catName, type: typeName,
+        date: isoDate, transaction_no: trNo, category: catName, type: typeName,
         description: desc,
         recette: type === 'Recette' ? amount : 0,
         depense: type === 'Dépense' ? amount : 0,
@@ -347,7 +327,7 @@ async function saveMovement() {
         await apiCall('addMovement', mvt);
         toast('✅ Mouvement ajouté.', 'success');
     }
-    clearForm(); refreshMovements(); refreshMissions();
+    clearForm(); refreshMovements();
 }
 
 async function editMovement(id) {
@@ -355,7 +335,7 @@ async function editMovement(id) {
     const m = (res.movements || []).find(x => String(x.id) === String(id));
     if (!m) return;
     CURRENT_EDIT_ID = id;
-    document.getElementById('inpDate').value = toFRDate(m.date);
+    document.getElementById('inpDate').value = m.date;
     document.getElementById('inpTransaction').value = m.transaction_no || '';
     document.getElementById('inpDescription').value = m.description || '';
     document.getElementById('inpAmount').value = m.recette || m.depense;
@@ -377,161 +357,7 @@ async function editMovement(id) {
 }
 
 /* =========================================================
-   MISSIONS
-   ========================================================= */
-async function refreshMissions() {
-    const from = document.getElementById('missionFrom').value;
-    const to   = document.getElementById('missionTo').value;
-    const q    = document.getElementById('missionSearch').value.trim().toLowerCase();
-    const isoFrom = from ? toISODate(from) : null;
-    const isoTo   = to ? toISODate(to) : null;
-
-    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
-    const all = res.movements || [];
-
-    let missions = all.filter(m => isMissionCategory(m.category));
-    if (q) missions = missions.filter(m => JSON.stringify(m).toLowerCase().includes(q));
-
-    const tbody = document.getElementById('missionsTbody');
-    tbody.innerHTML = '';
-
-    let totalRec = 0;
-    let totalDep = 0;
-
-    missions.forEach(m => {
-        totalRec += Number(m.recette || 0);
-        totalDep += Number(m.depense || 0);
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${fmtDate(m.date)}</td>
-            <td>${m.transaction_no || ''}</td>
-            <td>
-                <div class="mission-name">${m.description || m.type || 'Mission sans nom'}</div>
-                ${m.type ? `<div class="mission-desc">Type: ${m.type}</div>` : ''}
-            </td>
-            <td class="amt-recette" style="text-align:right">
-                ${m.recette ? fmtMoney(m.recette) : ''}
-            </td>
-            <td class="amt-depense" style="text-align:right">
-                ${m.depense ? fmtMoney(m.depense) : ''}
-            </td>
-            <td>
-                ${hasPerm('edit') ? `<button class="btn btn-gray" data-edit-mission="${m.id}">✏️</button>` : ''}
-                ${hasPerm('delete') ? `<button class="btn btn-danger" data-del-mission="${m.id}">🗑</button>` : ''}
-            </td>`;
-        tbody.appendChild(tr);
-    });
-
-    document.getElementById('missionCount').textContent = missions.length;
-    document.getElementById('missionRecettes').textContent = fmtMoney(totalRec);
-    document.getElementById('missionDepenses').textContent = fmtMoney(totalDep);
-    document.getElementById('missionBalance').textContent = fmtMoney(totalRec - totalDep);
-    document.getElementById('missionsFoot').textContent = missions.length + ' mission(s)';
-}
-
-async function exportMissionsExcel() {
-    const from = document.getElementById('missionFrom').value;
-    const to   = document.getElementById('missionTo').value;
-    const isoFrom = from ? toISODate(from) : null;
-    const isoTo   = to ? toISODate(to) : null;
-
-    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
-    const missions = (res.movements || []).filter(m => isMissionCategory(m.category));
-
-    if (!missions.length) { toast('⚠️ Aucune mission à exporter', 'warn'); return; }
-
-    let totalRec = 0, totalDep = 0;
-    const data = [
-        ['MY CAISSE PRESTAPAY — SUIVI DES MISSIONS'],
-        [`Du ${from || 'N/A'} au ${to || 'N/A'}`],
-        [],
-        ['Date', 'N° Transaction', 'Nom de la Mission', 'Type', 'Recettes (MRU)', 'Dépenses (MRU)']
-    ];
-
-    missions.forEach(m => {
-        totalRec += Number(m.recette || 0);
-        totalDep += Number(m.depense || 0);
-        data.push([
-            fmtDate(m.date), m.transaction_no || '',
-            m.description || m.type || '', m.type || '',
-            m.recette || 0, m.depense || 0
-        ]);
-    });
-
-    data.push([]);
-    data.push(['', '', 'TOTAL RECETTES', '', totalRec, '']);
-    data.push(['', '', 'TOTAL DÉPENSES', '', '', totalDep]);
-    data.push(['', '', 'SOLDE MISSIONS', '', '', '', totalRec - totalDep]);
-
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Missions');
-    const stamp = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `Missions_${stamp}.xlsx`);
-    toast('✅ Excel missions exporté', 'success');
-}
-
-async function exportMissionsPDF() {
-    const from = document.getElementById('missionFrom').value;
-    const to   = document.getElementById('missionTo').value;
-    const isoFrom = from ? toISODate(from) : null;
-    const isoTo   = to ? toISODate(to) : null;
-
-    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
-    const missions = (res.movements || []).filter(m => isMissionCategory(m.category));
-
-    if (!missions.length) { toast('⚠️ Aucune mission à exporter', 'warn'); return; }
-
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-    doc.setFillColor(124, 58, 237);
-    doc.rect(0, 0, 297, 22, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16); doc.setFont(undefined, 'bold');
-    doc.text('MY CAISSE PRESTAPAY', 148, 10, { align: 'center' });
-    doc.setFontSize(9); doc.setFont(undefined, 'normal');
-    doc.text(`Suivi des Missions — Du ${from || 'N/A'} au ${to || 'N/A'}`, 148, 17, { align: 'center' });
-
-    let totalRec = 0, totalDep = 0;
-    missions.forEach(m => {
-        totalRec += Number(m.recette || 0);
-        totalDep += Number(m.depense || 0);
-    });
-
-    doc.setTextColor(30, 58, 138);
-    doc.setFontSize(10);
-    doc.text(`Total Missions : ${missions.length}`, 15, 30);
-    doc.text(`Total Recettes : ${fmtMoney(totalRec)}`, 90, 30);
-    doc.text(`Total Dépenses : ${fmtMoney(totalDep)}`, 165, 30);
-    doc.text(`Solde : ${fmtMoney(totalRec - totalDep)}`, 240, 30);
-
-    doc.autoTable({
-        startY: 36,
-        head: [['Date', 'N° Transaction', 'Nom de la Mission', 'Type', 'Recettes', 'Dépenses']],
-        body: missions.map(m => [
-            fmtDate(m.date), m.transaction_no || '',
-            m.description || m.type || '', m.type || '',
-            m.recette ? fmtMoney(m.recette) : '',
-            m.depense ? fmtMoney(m.depense) : ''
-        ]),
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [124, 58, 237], textColor: 255 },
-        alternateRowStyles: { fillColor: [237, 233, 254] },
-        columnStyles: {
-            4: { halign: 'right', textColor: [5, 150, 105] },
-            5: { halign: 'right', textColor: [220, 38, 38] }
-        }
-    });
-
-    const stamp = new Date().toISOString().slice(0, 10);
-    doc.save(`Missions_${stamp}.pdf`);
-    toast('✅ PDF missions exporté', 'success');
-}
-
-/* =========================================================
-   CATÉGORIES & TYPES (MANAGEMENT)
+   CATÉGORIES & TYPES
    ========================================================= */
 async function refreshManageTables() {
     const catRes = await apiCall('getCategories');
@@ -585,13 +411,12 @@ async function refreshTypesTable() {
 async function addCategory() {
     const name = document.getElementById('newCatName').value.trim();
     const kind = document.getElementById('newCatKind').value;
-    if (!name) { toast('⚠️ Entrez le nom de la catégorie', 'warn'); return; }
+    if (!name) { toast('⚠️ Entrez le nom', 'warn'); return; }
     const res = await apiCall('addCategory', { name, kind });
     if (res.success) {
         toast('✅ Catégorie ajoutée', 'success');
         document.getElementById('newCatName').value = '';
-        refreshManageTables();
-        refreshCategorySelect();
+        refreshManageTables(); refreshCategorySelect();
     } else toast('❌ ' + (res.error || 'Échec'), 'error');
 }
 
@@ -599,16 +424,15 @@ async function deleteCategory(id, name) {
     if (!confirm(`Supprimer la catégorie "${name}" ?`)) return;
     const res = await apiCall('deleteCategory', { id, name });
     if (res.success) {
-        toast('✅ Catégorie supprimée', 'success');
-        refreshManageTables();
-        refreshCategorySelect();
+        toast('✅ Supprimée', 'success');
+        refreshManageTables(); refreshCategorySelect();
     }
 }
 
 async function addType() {
     const catId = document.getElementById('typeParentCat').value;
     const name  = document.getElementById('newTypeName').value.trim();
-    if (!name) { toast('⚠️ Entrez le nom du type', 'warn'); return; }
+    if (!name) { toast('⚠️ Entrez le nom', 'warn'); return; }
     const res = await apiCall('addType', { category_id: catId, name });
     if (res.success) {
         toast('✅ Type ajouté', 'success');
@@ -620,7 +444,7 @@ async function addType() {
 async function deleteType(id) {
     if (!confirm('Supprimer ce type ?')) return;
     const res = await apiCall('deleteType', { id });
-    if (res.success) { toast('✅ Type supprimé', 'success'); refreshTypesTable(); }
+    if (res.success) { toast('✅ Supprimé', 'success'); refreshTypesTable(); }
 }
 
 /* =========================================================
@@ -715,11 +539,8 @@ function renderReport(r) {
                     <td style="text-align:right">${fmtMoney(g.total)}</td>
                  </tr>`;
         Object.keys(g.types).sort().forEach(typ => {
-            html += `<tr>
-                        <td style="padding-left:30px">— ${typ}</td>
-                        <td></td>
-                        <td style="text-align:right">${fmtMoney(g.types[typ])}</td>
-                     </tr>`;
+            html += `<tr><td style="padding-left:30px">— ${typ}</td><td></td>
+                        <td style="text-align:right">${fmtMoney(g.types[typ])}</td></tr>`;
         });
     });
 
@@ -735,14 +556,13 @@ function renderReport(r) {
     document.getElementById('reportOutput').innerHTML = html;
 }
 
-function exportReportExcel() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
+async function exportReportExcel() {
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
-    const monthLabel = m + '-' + y;
     const data = [
         ['MY CAISSE PRESTAPAY'],
-        ['DÉPENSE EXPLOITATION PRESTAPAY — ' + monthLabel],
+        ['DÉPENSE EXPLOITATION PRESTAPAY — ' + m + '-' + y],
         [],
         ['Solde début', r.opening],
         ['Total Recettes', r.totalRec],
@@ -761,12 +581,12 @@ function exportReportExcel() {
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Rapport');
-    XLSX.writeFile(wb, `Rapport_${monthLabel}.xlsx`);
+    XLSX.writeFile(wb, `Rapport_${m}-${y}.xlsx`);
     toast('✅ Excel exporté', 'success');
 }
 
-function exportReportPDF() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
+async function exportReportPDF() {
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
     const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin',
@@ -799,15 +619,13 @@ function exportReportPDF() {
                    { content: fmtMoney(g.total), styles: { halign:'right', fontStyle:'bold',
                     fillColor:[237,233,254], textColor:[109,40,217] } }]);
         Object.keys(g.types).sort().forEach(typ => {
-            rows.push(['  — ' + typ, '', { content: fmtMoney(g.types[typ]),
-                        styles: { halign:'right' } }]);
+            rows.push(['  — ' + typ, '', { content: fmtMoney(g.types[typ]), styles: { halign:'right' } }]);
         });
     });
     rows.push([{ content: 'TOTAL DÉPENSES', colSpan: 2,
                  styles: { fontStyle:'bold', fillColor:[30,58,138], textColor:[255,255,255] } },
                { content: fmtMoney(r.totalDep),
-                 styles: { halign:'right', fontStyle:'bold',
-                           fillColor:[30,58,138], textColor:[255,255,255] } }]);
+                 styles: { halign:'right', fontStyle:'bold', fillColor:[30,58,138], textColor:[255,255,255] } }]);
     doc.autoTable({
         startY: y0 + 32,
         head: [['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']],
@@ -821,26 +639,23 @@ function exportReportPDF() {
 }
 
 async function saveClosingAsOpening() {
-    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
-    if (!confirm(`Enregistrer le solde fin ${fmtMoney(CURRENT_REPORT.closing)} comme nouveau solde début ?`)) return;
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord', 'warn'); return; }
+    if (!confirm(`Enregistrer ${fmtMoney(CURRENT_REPORT.closing)} comme nouveau solde début ?`)) return;
     const res = await apiCall('setSetting', {
         key: 'opening_balance', value: CURRENT_REPORT.closing
     });
     if (res.success) {
         toast('✅ Solde début mis à jour', 'success');
-        refreshBanner();
-        loadSettings();
+        refreshBanner(); refreshSettings();
     }
 }
 
 /* =========================================================
-   EXPORTS (Main)
+   EXPORTS
    ========================================================= */
 async function exportData(format) {
-    const from = document.getElementById('filterFrom').value;
-    const to   = document.getElementById('filterTo').value;
-    const isoFrom = from ? toISODate(from) : null;
-    const isoTo   = to ? toISODate(to) : null;
+    const isoFrom = document.getElementById('filterFrom').value || null;
+    const isoTo   = document.getElementById('filterTo').value || null;
     const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
     const movements = res.movements || [];
 
@@ -857,11 +672,13 @@ async function exportData(format) {
     const tFrais = movements.reduce((s,m) => s + Number(m.frais||0), 0);
     const finalBal = opening + tRec - tDep - tFrais;
     const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+    const fromFR = isoFrom ? isoToFR(isoFrom) : 'N/A';
+    const toFR = isoTo ? isoToFR(isoTo) : 'N/A';
 
     if (format === 'excel') {
         const data = [
             ['MY CAISSE PRESTAPAY'],
-            ['Période', `${from || 'N/A'} → ${to || 'N/A'}`],
+            ['Période', `${fromFR} → ${toFR}`],
             ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
             [],
             ['Date','N° Transaction','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']
@@ -897,7 +714,7 @@ async function exportData(format) {
         doc.setFontSize(16); doc.setFont(undefined,'bold');
         doc.text('MY CAISSE PRESTAPAY', 148, 12, { align:'center' });
         doc.setFontSize(9); doc.setFont(undefined,'normal');
-        doc.text(`Du ${from||'N/A'} au ${to||'N/A'}`, 148, 18, { align:'center' });
+        doc.text(`Du ${fromFR} au ${toFR}`, 148, 18, { align:'center' });
         doc.setTextColor(30,58,138); doc.setFontSize(10);
         doc.text(`Solde début: ${fmtMoney(opening)}`, 15, 30);
         doc.text(`Recettes: ${fmtMoney(tRec)}`, 75, 30);
@@ -948,7 +765,7 @@ async function exportData(format) {
             td { border:1px solid #ccc; padding:4px; }
         </style></head><body>
         <h1>MY CAISSE PRESTAPAY</h1>
-        <p style="text-align:center">Du ${from||''} au ${to||''}</p>
+        <p style="text-align:center">Du ${fromFR} au ${toFR}</p>
         <p><b>Solde début:</b> ${fmtMoney(opening)} |
            <b>Recettes:</b> ${fmtMoney(tRec)} |
            <b>Dépenses:</b> ${fmtMoney(tDep)} |
@@ -980,36 +797,26 @@ function handleUpload(file) {
     if (!file) return;
     const name = file.name.toLowerCase();
     if (name.endsWith('.csv')) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try { await importCSV(e.target.result); }
-            catch (err) { toast('❌ ' + err.message, 'error'); }
-        };
-        reader.readAsText(file);
+        const r = new FileReader();
+        r.onload = async (e) => { try { await importCSV(e.target.result); }
+            catch (err) { toast('❌ ' + err.message, 'error'); } };
+        r.readAsText(file);
     } else if (name.endsWith('.json')) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try { await importJSON(e.target.result); }
-            catch (err) { toast('❌ ' + err.message, 'error'); }
-        };
-        reader.readAsText(file);
+        const r = new FileReader();
+        r.onload = async (e) => { try { await importJSON(e.target.result); }
+            catch (err) { toast('❌ ' + err.message, 'error'); } };
+        r.readAsText(file);
     } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try { await importExcel(e.target.result); }
-            catch (err) { console.error(err); toast('❌ Excel: ' + err.message, 'error'); }
-        };
-        reader.readAsArrayBuffer(file);
+        const r = new FileReader();
+        r.onload = async (e) => { try { await importExcel(e.target.result); }
+            catch (err) { toast('❌ Excel: ' + err.message, 'error'); } };
+        r.readAsArrayBuffer(file);
     } else if (name.endsWith('.pdf')) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try { await importPDF(e.target.result); }
-            catch (err) { console.error(err); toast('❌ PDF: ' + err.message, 'error'); }
-        };
-        reader.readAsArrayBuffer(file);
-    } else {
-        toast('⚠️ Formats acceptés : CSV, JSON, Excel, PDF', 'warn');
-    }
+        const r = new FileReader();
+        r.onload = async (e) => { try { await importPDF(e.target.result); }
+            catch (err) { toast('❌ PDF: ' + err.message, 'error'); } };
+        r.readAsArrayBuffer(file);
+    } else toast('⚠️ CSV, JSON, Excel, PDF seulement', 'warn');
 }
 
 async function importCSV(text) {
@@ -1017,52 +824,49 @@ async function importCSV(text) {
     if (lines.length < 2) { toast('⚠️ CSV vide', 'warn'); return; }
     const delim = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
     const splitLine = (line) => {
-        const result = []; let current = '', inQuotes = false;
+        const result = []; let cur = '', inQ = false;
         for (let i = 0; i < line.length; i++) {
             const ch = line[i];
-            if (ch === '"') {
-                if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
-                else inQuotes = !inQuotes;
-            } else if (ch === delim && !inQuotes) { result.push(current); current = ''; }
-            else current += ch;
+            if (ch === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
+            else if (ch === delim && !inQ) { result.push(cur); cur = ''; }
+            else cur += ch;
         }
-        result.push(current);
+        result.push(cur);
         return result.map(c => c.trim().replace(/^"|"$/g, ''));
     };
     const headers = splitLine(lines[0]).map(h => h.toLowerCase());
     const idxDate = headers.findIndex(h => h.includes('date'));
     const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
-    const idxCat  = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
+    const idxCat  = headers.findIndex(h => h.includes('catégor'));
     const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
     const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
-    const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
-    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+    const idxRec  = headers.findIndex(h => h.includes('recette'));
+    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense'));
     const idxFrais = headers.findIndex(h => h.includes('frais'));
 
-    let imported = 0, skipped = 0;
+    let imp = 0, skip = 0;
     for (let i = 1; i < lines.length; i++) {
         const cols = splitLine(lines[i]);
         if (!cols.length) continue;
         const dateStr = parseDate(cols[idxDate]);
-        if (!dateStr) { skipped++; continue; }
-        const amountRec = idxRec >= 0 ? safeAmount(cols[idxRec]) : 0;
-        const amountDep = idxDep >= 0 ? safeAmount(cols[idxDep]) : 0;
-        const amountFrais = idxFrais >= 0 ? safeAmount(cols[idxFrais]) : 0;
-        if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
+        if (!dateStr) { skip++; continue; }
+        const r = idxRec >= 0 ? parseAmount(cols[idxRec]) : 0;
+        const d = idxDep >= 0 ? parseAmount(cols[idxDep]) : 0;
+        const f = idxFrais >= 0 ? parseAmount(cols[idxFrais]) : 0;
+        if (r === 0 && d === 0) { skip++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? cols[idxCat]  : '',
             idxType >= 0 ? cols[idxType] : '',
-            idxDesc >= 0 ? cols[idxDesc] : ''
-        );
+            idxDesc >= 0 ? cols[idxDesc] : '');
         await apiCall('addMovement', {
             date: dateStr, transaction_no: idxTrNo >= 0 ? cols[idxTrNo] : '',
             category: split.category, type: split.type, description: split.description,
-            recette: amountRec, depense: amountDep, frais: amountFrais
+            recette: r, depense: d, frais: f
         });
-        imported++;
+        imp++;
     }
-    toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
-    refreshMovements(); refreshMissions(); refreshBanner();
+    toast(`✅ Importés : ${imp} | Ignorés : ${skip}`, 'success');
+    refreshMovements(); refreshBanner();
 }
 
 async function importExcel(arrayBuffer) {
@@ -1071,57 +875,53 @@ async function importExcel(arrayBuffer) {
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
     if (rows.length < 2) { toast('⚠️ Excel vide', 'warn'); return; }
-
     let headerRow = 0;
     for (let i = 0; i < Math.min(rows.length, 15); i++) {
-        const first = String(rows[i][0] || '').toLowerCase();
         const joined = rows[i].map(c => String(c).toLowerCase()).join('|');
-        if (first.includes('date') || (joined.includes('date') && joined.includes('transaction'))) {
+        if (joined.includes('date') && (joined.includes('transaction') || joined.includes('catégor'))) {
             headerRow = i; break;
         }
     }
     const headers = rows[headerRow].map(h => String(h).toLowerCase().trim());
     const idxDate = headers.findIndex(h => h.includes('date'));
     const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
-    const idxCat  = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
+    const idxCat  = headers.findIndex(h => h.includes('catégor'));
     const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
     const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
-    const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
-    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+    const idxRec  = headers.findIndex(h => h.includes('recette'));
+    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense'));
     const idxFrais = headers.findIndex(h => h.includes('frais'));
 
-    let imported = 0, skipped = 0;
+    let imp = 0, skip = 0;
     for (let i = headerRow + 1; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length === 0) continue;
-        const firstCell = String(row[0] || '').toLowerCase();
-        if (firstCell.includes('total') || firstCell.includes('solde début') ||
-            firstCell.includes('solde fin')) continue;
+        const first = String(row[0] || '').toLowerCase();
+        if (first.includes('total') || first.includes('solde début') || first.includes('solde fin')) continue;
         const dateStr = parseDate(row[idxDate]);
-        if (!dateStr) { skipped++; continue; }
-        const amountRec = idxRec >= 0 ? safeAmount(row[idxRec]) : 0;
-        const amountDep = idxDep >= 0 ? safeAmount(row[idxDep]) : 0;
-        const amountFrais = idxFrais >= 0 ? safeAmount(row[idxFrais]) : 0;
-        if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
+        if (!dateStr) { skip++; continue; }
+        const r = idxRec >= 0 ? parseAmount(row[idxRec]) : 0;
+        const d = idxDep >= 0 ? parseAmount(row[idxDep]) : 0;
+        const f = idxFrais >= 0 ? parseAmount(row[idxFrais]) : 0;
+        if (r === 0 && d === 0) { skip++; continue; }
         const split = splitCategoryType(
             idxCat  >= 0 ? row[idxCat]  : '',
             idxType >= 0 ? row[idxType] : '',
-            idxDesc >= 0 ? row[idxDesc] : ''
-        );
+            idxDesc >= 0 ? row[idxDesc] : '');
         await apiCall('addMovement', {
             date: dateStr,
             transaction_no: idxTrNo >= 0 ? String(row[idxTrNo] || '') : '',
             category: split.category, type: split.type, description: split.description,
-            recette: amountRec, depense: amountDep, frais: amountFrais
+            recette: r, depense: d, frais: f
         });
-        imported++;
+        imp++;
     }
-    toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
-    refreshMovements(); refreshMissions(); refreshBanner();
+    toast(`✅ Importés : ${imp} | Ignorés : ${skip}`, 'success');
+    refreshMovements(); refreshBanner();
 }
 
 async function importPDF(arrayBuffer) {
-    if (!window.pdfjsLib) { toast('❌ Bibliothèque PDF non chargée', 'error'); return; }
+    if (!window.pdfjsLib) { toast('❌ PDF.js non chargé', 'error'); return; }
     pdfjsLib.GlobalWorkerOptions.workerSrc =
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -1133,60 +933,39 @@ async function importPDF(arrayBuffer) {
         fullText += content.items.map(i => i.str).join(' ') + '\n';
     }
     const movements = parsePDFMovements(fullText);
-    if (!movements.length) { toast('⚠️ Aucun mouvement détecté', 'warn'); return; }
-    let imported = 0;
+    if (!movements.length) { toast('⚠️ Aucun mouvement', 'warn'); return; }
+    let imp = 0;
     for (const m of movements) {
         const res = await apiCall('addMovement', m);
-        if (res.success) imported++;
+        if (res.success) imp++;
     }
-    toast(`✅ ${imported} mouvement(s) importé(s) du PDF`, 'success');
-    refreshMovements(); refreshMissions(); refreshBanner();
+    toast(`✅ ${imp} importé(s) du PDF`, 'success');
+    refreshMovements(); refreshBanner();
 }
 
 function parsePDFMovements(text) {
     const movements = [];
-    const typeKeywords = [
-        'LOCAL PRESTAPAY', 'LOCAL AGANCE', 'LOCAL AGENCE',
-        'LOCAL ROSSO MARCHE GANDR', 'AVANCE', 'SALAIRE', 'CARBURANT',
-        'SOMELEC', 'TTE', 'CREDIT MMS', 'CNX MMS',
-        'REG PARTIE 1', 'REG PARTIE 2', 'REG PARTIE 3', 'REG PARTIE 4',
-        'TRANSFERT PAR ERREUR'
-    ];
     const lines = text.split(/(?=\d{2}\/\d{2}\/\d{4})/g);
     for (const chunk of lines) {
         const trimmed = chunk.trim();
         if (!trimmed) continue;
-        const dateMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-        if (!dateMatch) continue;
-        const isoDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-        const trMatch = trimmed.match(/(TR\d+)/);
-        const trNo = trMatch ? trMatch[1] : '';
+        const m = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (!m) continue;
+        const isoDate = `${m[3]}-${m[2]}-${m[1]}`;
+        const trM = trimmed.match(/(TR\d+)/);
+        const trNo = trM ? trM[1] : '';
         let rest = trimmed.replace(/^\d{2}\/\d{2}\/\d{4}\s*/, '').replace(/TR\d+\s*/, '');
-        const amountPattern = /\b\d{1,3}(?:[\s,]\d{3})*(?:[.,]\d{2})?\b/g;
-        const numbers = rest.match(amountPattern) || [];
-        if (numbers.length < 1) continue;
-        const amountStr = numbers.length >= 2 ? numbers[numbers.length - 2] : numbers[0];
-        const amount = safeAmount(amountStr);
+        const nums = rest.match(/[\d\s]+[.,]\d{2}/g) || [];
+        if (!nums.length) continue;
+        const amountStr = nums.length >= 2 ? nums[nums.length - 2] : nums[0];
+        const amount = parseAmount(amountStr);
         if (amount <= 0) continue;
-        let desc = rest.replace(amountPattern, ' ').replace(/\s+/g, ' ')
-                       .replace(/[—–-]{2,}/g, '—').trim();
-        let category = '', description = desc, typeName = '';
-        const dashIdx = desc.indexOf('—');
-        if (dashIdx > 0) {
-            category = desc.substring(0, dashIdx).trim().toUpperCase();
-            description = desc.substring(dashIdx + 1).trim();
-        }
-        for (const keyword of typeKeywords) {
-            if (description.toUpperCase().startsWith(keyword)) {
-                typeName = keyword;
-                description = description.substring(keyword.length).trim();
-                break;
-            }
-        }
-        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(desc);
+        let desc = rest.replace(/[\d\s]+[.,]\d{2}/g, ' ').replace(/\s+/g, ' ').trim();
+        const split = splitCategoryType('', '', desc);
+        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(split.category);
         movements.push({
             date: isoDate, transaction_no: trNo,
-            category: category, type: typeName, description: description,
+            category: split.category, type: split.type, description: split.description,
             recette: isIncome ? amount : 0, depense: isIncome ? 0 : amount, frais: 0
         });
     }
@@ -1206,40 +985,33 @@ async function importJSON(text) {
             });
         }
         toast(`✅ ${data.length} importé(s)`, 'success');
-        refreshMovements(); refreshMissions();
+        refreshMovements();
     }
 }
 
-/* =========================================================
-   HELPERS
-   ========================================================= */
-function splitCategoryType(rawCategory, rawType, rawDescription) {
-    let category = String(rawCategory || '').trim().toUpperCase();
-    let type     = String(rawType || '').trim().toUpperCase();
-    let desc     = String(rawDescription || '').trim();
+function splitCategoryType(rc, rt, rd) {
+    let category = String(rc || '').trim().toUpperCase();
+    let type     = String(rt || '').trim().toUpperCase();
+    let desc     = String(rd || '').trim();
     const DASH = /\s*[—–]\s*|\s+-\s+/;
     if (category && !type && DASH.test(category)) {
         const parts = category.split(DASH);
         category = parts[0].trim();
         type = parts.slice(1).join(' — ').trim();
     } else if (desc && category && desc.toUpperCase().startsWith(category)) {
-        const pattern = new RegExp(
-            '^' + category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-            + '\\s*[—–-]?\\s*'
-            + (type ? type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '')
-            + '\\s*', 'i'
-        );
+        const pattern = new RegExp('^' + category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            + '\\s*[—–-]?\\s*' + (type ? type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '') + '\\s*', 'i');
         desc = desc.replace(pattern, '').trim();
     }
     if (desc && DASH.test(desc) && !type) {
-        const descParts = desc.split(DASH);
-        if (descParts.length >= 2 && descParts[1].length < 60) {
-            const possibleCat = descParts[0].trim().toUpperCase();
-            const possibleTyp = descParts[1].trim().toUpperCase();
-            if (possibleCat.length > 3 && possibleTyp.length > 2) {
-                if (!category) category = possibleCat;
-                if (!type)     type     = possibleTyp;
-                desc = descParts.slice(2).join(' — ').trim();
+        const parts = desc.split(DASH);
+        if (parts.length >= 2 && parts[1].length < 60) {
+            const pc = parts[0].trim().toUpperCase();
+            const pt = parts[1].trim().toUpperCase();
+            if (pc.length > 3 && pt.length > 2) {
+                if (!category) category = pc;
+                if (!type) type = pt;
+                desc = parts.slice(2).join(' — ').trim();
             }
         }
     }
@@ -1255,11 +1027,11 @@ function parseDate(v) {
     }
     const s = String(v).trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-    const match = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
-    if (match) {
-        let [_, d, m, y] = match;
+    const m = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+    if (m) {
+        let [_, d, mo, y] = m;
         if (y.length === 2) y = '20' + y;
-        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+        return `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
     }
     const parsed = new Date(s);
     if (!isNaN(parsed)) return parsed.toISOString().slice(0, 10);
@@ -1274,13 +1046,6 @@ function parseAmount(v) {
     else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
     const n = parseFloat(s);
     return isNaN(n) ? 0 : n;
-}
-
-/* ✅ حماية: إذا كان الرقم أكبر من 10 مليون، تجاهله */
-function safeAmount(v) {
-    const num = parseAmount(v);
-    if (num > 10000000) return 0;
-    return num;
 }
 
 /* =========================================================
@@ -1334,108 +1099,96 @@ async function saveUser() {
         permissions: perms,
         active: document.getElementById('chkActive').checked
     };
-    if (!payload.username || !payload.password) {
-        toast('⚠️ Nom d\'utilisateur et mot de passe requis', 'warn'); return;
-    }
+    if (!payload.username || !payload.password) { toast('⚠️ Champs requis', 'warn'); return; }
     let res;
     if (id) { payload.id = id; res = await apiCall('updateUser', payload); }
     else res = await apiCall('addUser', payload);
     if (res.success) {
-        toast('✅ Utilisateur enregistré', 'success');
+        toast('✅ Enregistré', 'success');
         modal.classList.remove('open');
         refreshUsersTable();
     } else toast('❌ ' + (res.error || 'Échec'), 'error');
 }
 
 /* =========================================================
-   PARAMÈTRES (Admin uniquement)
+   PARAMÈTRES
    ========================================================= */
-async function loadSettings() {
+async function refreshSettings() {
     const res = await apiCall('getSetting', { key: 'opening_balance' });
     const opening = Number(res.value || 0);
-    document.getElementById('currentOpeningBalance').textContent = fmtMoney(opening);
-    document.getElementById('inpOpeningBalance').value = opening;
+    const el = document.getElementById('currentOpeningBalance');
+    const input = document.getElementById('inpOpeningBalance');
+    if (el) el.textContent = fmtMoney(opening);
+    if (input) input.value = opening;
 
-    document.getElementById('infoAppName').textContent = CONFIG.APP_NAME;
-    document.getElementById('infoVersion').textContent = CONFIG.APP_VERSION;
-    document.getElementById('infoMode').textContent = CONFIG.LOCAL_MODE ? 'Local' : 'Serveur (Google Sheets)';
-    document.getElementById('infoUser').textContent = SESSION.username + ' (' + SESSION.role + ')';
+    const appNameEl = document.getElementById('infoAppName');
+    const versionEl = document.getElementById('infoVersion');
+    const modeEl = document.getElementById('infoMode');
+    const userEl = document.getElementById('infoUser');
+    if (appNameEl) appNameEl.textContent = CONFIG.APP_NAME || 'My Caisse';
+    if (versionEl) versionEl.textContent = CONFIG.APP_VERSION || '2.4.0';
+    if (modeEl) modeEl.textContent = CONFIG.LOCAL_MODE ? 'Local' : 'Google Sheets';
+    if (userEl) userEl.textContent = SESSION ? SESSION.username + ' (' + SESSION.role + ')' : '—';
 }
 
 async function saveOpeningBalance() {
-    const input = document.getElementById('inpOpeningBalance');
-    const value = parseFloat(input.value.replace(',', '.')) || 0;
-
-    if (!confirm(
-        `⚠️ Confirmer la modification du Solde Début ?\n\n` +
-        `Nouveau solde début : ${fmtMoney(value)}\n\n` +
-        `Cette modification affectera tous les calculs de solde.`
-    )) return;
-
-    const res = await apiCall('setSetting', { key: 'opening_balance', value: value });
-
+    const val = parseFloat(document.getElementById('inpOpeningBalance').value.replace(',', '.')) || 0;
+    if (!confirm(`Confirmer ${fmtMoney(val)} comme nouveau Solde début ?`)) return;
+    const res = await apiCall('setSetting', { key: 'opening_balance', value: val });
     if (res.success) {
-        toast('✅ Solde début mis à jour : ' + fmtMoney(value), 'success');
-        await loadSettings();
-        await refreshBanner();
-        await refreshMovements();
-    } else {
-        toast('❌ Échec : ' + (res.error || 'Erreur inconnue'), 'error');
+        toast('✅ Solde début mis à jour', 'success');
+        refreshSettings(); refreshBanner(); refreshMovements();
+    } else toast('❌ Échec', 'error');
+}
+
+async function deleteAllMovements() {
+    if (!confirm('⚠️ ATTENTION ⚠️\n\nSupprimer TOUS les mouvements ?\n\nIRRÉVERSIBLE !')) return;
+    const input = prompt('Tapez "SUPPRIMER" (majuscules) pour confirmer :');
+    if (input !== 'SUPPRIMER') { toast('❌ Annulé', 'warn'); return; }
+    if (!confirm('DERNIÈRE CONFIRMATION ?')) return;
+
+    toast('⏳ Suppression...', 'warn');
+    const res = await apiCall('deleteAllMovements', { confirm: 'DELETE_ALL' });
+    if (res.success) {
+        toast(`✅ ${res.deleted || 0} supprimé(s)`, 'success');
+        refreshMovements(); refreshBanner();
+    } else toast('❌ Échec : ' + (res.error || ''), 'error');
+}
+
+async function recalcBalanceGlobal() {
+    if (!confirm('🔄 Recalculer Solde Global\n\nMettre Solde début à 0 ?')) return;
+    const res = await apiCall('setSetting', { key: 'opening_balance', value: 0 });
+    if (res.success) {
+        toast('✅ Recalculé', 'success');
+        refreshSettings(); refreshBanner(); refreshMovements();
+    } else toast('❌ Échec', 'error');
+}
+
+async function exportBackupJSON() {
+    try {
+        toast('⏳ Préparation...', 'warn');
+        const [mvtRes, catRes, typeRes, setRes] = await Promise.all([
+            apiCall('getMovements'),
+            apiCall('getCategories'),
+            apiCall('getTypes', {}),
+            apiCall('getSetting', { key: 'opening_balance' })
+        ]);
+        const backup = {
+            version: CONFIG.APP_VERSION,
+            exportedAt: new Date().toISOString(),
+            exportedBy: SESSION.username,
+            movements: mvtRes.movements || [],
+            categories: catRes.categories || [],
+            types: typeRes.types || [],
+            settings: { opening_balance: Number(setRes.value || 0) }
+        };
+        const json = JSON.stringify(backup, null, 2);
+        const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+        downloadBlob(json, `MyCaisse_Backup_${stamp}.json`, 'application/json');
+        toast('✅ Sauvegarde exportée', 'success');
+    } catch (err) {
+        toast('❌ Erreur : ' + err.message, 'error');
     }
-}
-
-async function recalculateBalance() {
-    if (!confirm(
-        '🔄 Recalculer le solde global ?\n\n' +
-        'Cette action va:\n' +
-        '1. Lire toutes les transactions\n' +
-        '2. Calculer le solde correct\n' +
-        '3. Comparer avec le solde actuel'
-    )) return;
-
-    const res = await apiCall('getMovements');
-    const mvts = res.movements || [];
-    const totalRec = mvts.reduce((s,m) => s + Number(m.recette||0), 0);
-    const totalDep = mvts.reduce((s,m) => s + Number(m.depense||0), 0);
-    const totalFrais = mvts.reduce((s,m) => s + Number(m.frais||0), 0);
-    const openingRes = await apiCall('getSetting', { key: 'opening_balance' });
-    const opening = Number(openingRes.value || 0);
-    const finalBalance = opening + totalRec - totalDep - totalFrais;
-
-    alert(
-        `📊 Récapitulatif Global\n\n` +
-        `Nombre de transactions : ${mvts.length}\n` +
-        `Solde début : ${fmtMoney(opening)}\n` +
-        `Total Recettes : ${fmtMoney(totalRec)}\n` +
-        `Total Dépenses : ${fmtMoney(totalDep)}\n` +
-        `Total Frais : ${fmtMoney(totalFrais)}\n` +
-        `━━━━━━━━━━━━━━━━━━━\n` +
-        `Solde final calculé : ${fmtMoney(finalBalance)}`
-    );
-    await refreshBanner();
-}
-
-async function exportBackup() {
-    const [mvtsRes, catsRes, setsRes] = await Promise.all([
-        apiCall('getMovements'),
-        apiCall('getCategories'),
-        apiCall('getSetting', { key: 'opening_balance' })
-    ]);
-
-    const backup = {
-        exportedAt: new Date().toISOString(),
-        app: CONFIG.APP_NAME,
-        version: CONFIG.APP_VERSION,
-        user: SESSION.username,
-        opening_balance: setsRes.value,
-        movements: mvtsRes.movements || [],
-        categories: catsRes.categories || []
-    };
-
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const stamp = new Date().toISOString().slice(0,10);
-    downloadBlob(blob, `MyCaisse_Backup_${stamp}.json`);
-    toast('✅ Sauvegarde exportée', 'success');
 }
 
 /* =========================================================
@@ -1445,27 +1198,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!SESSION) return;
     renderHeader();
     clearForm();
-    document.getElementById('inpDate').value = toFRDate(todayISO());
-    document.getElementById('filterFrom').value = toFRDate(
-        new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0,10));
-    document.getElementById('filterTo').value = toFRDate(todayISO());
-    document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
 
-    // Missions : mêmes filtres par défaut
-    document.getElementById('missionFrom').value = document.getElementById('filterFrom').value;
-    document.getElementById('missionTo').value = document.getElementById('filterTo').value;
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    document.getElementById('filterFrom').value = firstDay.toISOString().slice(0,10);
+    document.getElementById('filterTo').value = todayISO();
+    document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
 
     await refreshCategorySelect();
     await refreshMovements();
     await refreshUsersTable();
     await refreshManageTables();
-    await refreshMissions();
+    await refreshSettings();
 
-    if (SESSION.role === 'admin') {
-        await loadSettings();
-    }
-
-    // Events Mouvements
     document.getElementById('opTypeGroup').addEventListener('change', refreshCategorySelect);
     document.getElementById('selCategory').addEventListener('change', refreshTypeSelect);
     document.getElementById('btnSave').addEventListener('click', saveMovement);
@@ -1473,15 +1217,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('btnFilter').addEventListener('click', refreshMovements);
     document.getElementById('searchInput').addEventListener('input', refreshMovements);
 
+    document.getElementById('btnResetFilter')?.addEventListener('click', () => {
+        document.getElementById('filterFrom').value = '2000-01-01';
+        document.getElementById('filterTo').value = todayISO();
+        refreshMovements();
+    });
+
     document.querySelectorAll('[data-export]').forEach(b =>
         b.addEventListener('click', () => exportData(b.dataset.export)));
 
-    // Upload
     document.getElementById('fileInput').addEventListener('change', e => {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
     });
 
-    // Mouvements actions
     document.getElementById('movTbody').addEventListener('click', async (e) => {
         const editId = e.target.dataset.edit;
         const delId  = e.target.dataset.del;
@@ -1489,31 +1237,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (delId && confirm('Supprimer ce mouvement ?')) {
             await apiCall('deleteMovement', { id: Number(delId) });
             toast('✅ Supprimé', 'success');
-            refreshMovements(); refreshMissions();
+            refreshMovements();
         }
     });
 
-    // Missions
-    document.getElementById('btnFilterMissions')?.addEventListener('click', refreshMissions);
-    document.getElementById('missionSearch')?.addEventListener('input', refreshMissions);
-    document.getElementById('btnMissionExcel')?.addEventListener('click', exportMissionsExcel);
-    document.getElementById('btnMissionPDF')?.addEventListener('click', exportMissionsPDF);
-
-    document.getElementById('missionsTbody')?.addEventListener('click', async (e) => {
-        const editId = e.target.dataset.editMission;
-        const delId  = e.target.dataset.delMission;
-        if (editId) {
-            document.querySelector('[data-tab="tabMovements"]').click();
-            await editMovement(Number(editId));
-        }
-        if (delId && confirm('Supprimer cette mission ?')) {
-            await apiCall('deleteMovement', { id: Number(delId) });
-            toast('✅ Mission supprimée', 'success');
-            refreshMissions(); refreshMovements();
-        }
-    });
-
-    // Users
     document.getElementById('usersTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.editUser;
         const delId  = e.target.dataset.delUser;
@@ -1532,7 +1259,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userModalClose')?.addEventListener('click', () =>
         document.getElementById('userModal').classList.remove('open'));
 
-    // Manage categories/types
     document.getElementById('btnAddCategory')?.addEventListener('click', addCategory);
     document.getElementById('btnAddType')?.addEventListener('click', addType);
     document.getElementById('typeParentCat')?.addEventListener('change', refreshTypesTable);
@@ -1547,39 +1273,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (id) deleteType(Number(id));
     });
 
-    // Report
     document.getElementById('btnGenerateReport')?.addEventListener('click', generateReport);
     document.getElementById('btnReportExcel')?.addEventListener('click', exportReportExcel);
     document.getElementById('btnReportPDF')?.addEventListener('click', exportReportPDF);
     document.getElementById('btnSaveClosing')?.addEventListener('click', saveClosingAsOpening);
 
-    // Settings (Admin)
     document.getElementById('btnSaveOpening')?.addEventListener('click', saveOpeningBalance);
-    document.getElementById('btnRecalcBalance')?.addEventListener('click', recalculateBalance);
-    document.getElementById('btnExportBackup')?.addEventListener('click', exportBackup);
+    document.getElementById('btnDeleteAllMvt')?.addEventListener('click', deleteAllMovements);
+    document.getElementById('btnRecalcBalance')?.addEventListener('click', recalcBalanceGlobal);
+    document.getElementById('btnExportBackup')?.addEventListener('click', exportBackupJSON);
 
-    // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', async () => {
+        tab.addEventListener('click', () => {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
             document.getElementById(tab.dataset.tab).classList.add('active');
-
-            if (tab.dataset.tab === 'tabSettings') {
-                await loadSettings();
-            }
-            if (tab.dataset.tab === 'tabMissions') {
-                document.getElementById('missionFrom').value =
-                    document.getElementById('filterFrom').value;
-                document.getElementById('missionTo').value =
-                    document.getElementById('filterTo').value;
-                await refreshMissions();
-            }
+            if (tab.dataset.tab === 'tabSettings') refreshSettings();
         });
     });
 
-    // Logout
     document.getElementById('btnLogout').addEventListener('click', () => {
         if (confirm('Se déconnecter ?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
