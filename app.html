@@ -3,12 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Caisse Prestapay — Dashboard</title>
+<title>My Caisse Prestapay — Tableau de bord</title>
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -20,60 +21,64 @@
     <div class="user-info">
         <div class="avatar" id="userAvatar">U</div>
         <div style="text-align:right;line-height:1.2">
-            <div style="font-weight:700" id="userName">User</div>
+            <div style="font-weight:700" id="userName">Utilisateur</div>
             <div style="font-size:11px;opacity:.8" id="userRole">—</div>
         </div>
-        <button class="btn-ghost" id="btnLogout">🚪 Logout</button>
+        <button class="btn-ghost" id="btnLogout">🚪 Déconnexion</button>
     </div>
 </header>
 
 <div class="stats-banner">
-    <div class="stat"><div class="label">Opening Balance</div>
+    <div class="stat"><div class="label">SOLDE DÉBUT</div>
         <div class="value" id="statOpening">0 MRU</div></div>
-    <div class="stat recette"><div class="label">Total Income</div>
+    <div class="stat recette"><div class="label">TOTAL RECETTES</div>
         <div class="value" id="statRecettes">0 MRU</div></div>
-    <div class="stat depense"><div class="label">Total Expenses</div>
+    <div class="stat depense"><div class="label">TOTAL DÉPENSES</div>
         <div class="value" id="statDepenses">0 MRU</div></div>
-    <div class="stat final"><div class="label">Final Balance</div>
+    <div class="stat final"><div class="label">SOLDE FIN</div>
         <div class="value" id="statFinal">0 MRU</div></div>
 </div>
 
 <div class="app-container">
     <aside>
         <div class="card" data-add-only>
-            <div class="card-header" id="formTitle">New Movement</div>
+            <div class="card-header" id="formTitle">Nouveau Mouvement</div>
             <div class="card-body">
                 <div class="radio-group" id="opTypeGroup">
-                    <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Expense</span></label>
-                    <label><input type="radio" name="opType" value="Recette"><span>💰 Income</span></label>
+                    <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Dépense</span></label>
+                    <label><input type="radio" name="opType" value="Recette"><span>💰 Recette</span></label>
                 </div>
-                <div class="form-group"><label>Date</label>
-                    <input type="text" id="inpDate" class="form-control" placeholder="DD/MM/YYYY"></div>
-                <div class="form-group"><label>Transaction No.</label>
-                    <input type="text" id="inpTransaction" class="form-control"></div>
-                <div class="form-group"><label>Category</label>
+                <div class="form-group"><label>DATE</label>
+                    <input type="text" id="inpDate" class="form-control" placeholder="JJ/MM/AAAA"></div>
+                <div class="form-group"><label>N° TRANSACTION</label>
+                    <input type="text" id="inpTransaction" class="form-control" placeholder="TR..."></div>
+                <div class="form-group"><label>CATÉGORIE</label>
                     <select id="selCategory" class="form-control"></select></div>
-                <div class="form-group"><label>Type</label>
+                <div class="form-group"><label>TYPE</label>
                     <select id="selType" class="form-control"></select></div>
-                <div class="form-group"><label>Description</label>
-                    <input type="text" id="inpDescription" class="form-control"></div>
-                <div class="form-group"><label>Amount (MRU)</label>
-                    <input type="number" id="inpAmount" class="form-control" step="0.01"></div>
+                <div class="form-group"><label>DESCRIPTION</label>
+                    <input type="text" id="inpDescription" class="form-control" placeholder="Libellé..."></div>
+                <div class="form-group"><label>MONTANT (MRU)</label>
+                    <input type="number" id="inpAmount" class="form-control" step="0.01" placeholder="0.00"></div>
                 <div style="display:flex;gap:8px;margin-top:10px">
-                    <button class="btn btn-violet btn-block" id="btnSave">➕ Add</button>
-                    <button class="btn btn-gray" id="btnClear">Clear</button>
+                    <button class="btn btn-violet btn-block" id="btnSave">➕ Ajouter</button>
+                    <button class="btn btn-gray" id="btnClear">Effacer</button>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">📥 Import File</div>
+            <div class="card-header">📥 Importer un fichier</div>
             <div class="card-body">
                 <label class="upload-zone" for="fileInput">
                     <div style="font-size:28px">📄</div>
-                    <div style="font-weight:700;color:var(--violet-dark);margin-top:6px">Click or drop a file</div>
-                    <div style="font-size:11px;color:var(--gray);margin-top:4px">CSV, JSON</div>
-                    <input type="file" id="fileInput" accept=".csv,.json">
+                    <div style="font-weight:700;color:var(--violet-dark);margin-top:6px">
+                        Cliquez ou déposez un fichier
+                    </div>
+                    <div style="font-size:11px;color:var(--gray);margin-top:4px">
+                        CSV, JSON, Excel, PDF
+                    </div>
+                    <input type="file" id="fileInput" accept=".csv,.json,.xlsx,.xls,.pdf">
                 </label>
             </div>
         </div>
@@ -81,23 +86,23 @@
 
     <main>
         <div class="tabs">
-            <button class="tab active" data-tab="tabMovements">📊 Movements</button>
-            <button class="tab" data-tab="tabReport">📈 Monthly Report</button>
-            <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Categories & Types</button>
-            <button class="tab" data-tab="tabUsers" data-admin-only>👥 Users</button>
+            <button class="tab active" data-tab="tabMovements">📊 Mouvements</button>
+            <button class="tab" data-tab="tabReport">📈 Rapport Mensuel</button>
+            <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Catégories & Types</button>
+            <button class="tab" data-tab="tabUsers" data-admin-only>👥 Utilisateurs</button>
         </div>
 
-        <!-- MOVEMENTS -->
+        <!-- MOUVEMENTS -->
         <div class="tab-panel active" id="tabMovements">
             <div class="table-wrap">
                 <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark)">From</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">Du</span>
                     <input type="text" id="filterFrom" class="form-control" style="width:120px">
-                    <span style="font-weight:700;color:var(--violet-dark)">To</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">Au</span>
                     <input type="text" id="filterTo" class="form-control" style="width:120px">
-                    <button class="btn btn-violet" id="btnFilter">🔍 Filter</button>
+                    <button class="btn btn-violet" id="btnFilter">🔍 Filtrer</button>
                     <input type="text" id="searchInput" class="form-control"
-                           style="flex:1;min-width:180px" placeholder="🔎 Search...">
+                           style="flex:1;min-width:180px" placeholder="🔎 Rechercher...">
                     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
                         <button class="btn btn-success" data-export="excel">📗 Excel</button>
                         <button class="btn btn-blue"    data-export="word">📘 Word</button>
@@ -108,62 +113,63 @@
                 <div class="scroll-area">
                     <table class="data">
                         <thead><tr>
-                            <th>Date</th><th>Transaction</th><th>Category</th>
-                            <th>Type</th><th>Description</th>
-                            <th style="text-align:right">Income</th>
-                            <th style="text-align:right">Expense</th>
-                            <th style="text-align:right">Balance</th>
-                            <th>Actions</th>
+                            <th>DATE</th><th>TRANSACTION</th><th>CATÉGORIE</th>
+                            <th>TYPE</th><th>DESCRIPTION</th>
+                            <th style="text-align:right">RECETTES</th>
+                            <th style="text-align:right">DÉPENSES</th>
+                            <th style="text-align:right">SOLDE</th>
+                            <th>ACTIONS</th>
                         </tr></thead>
                         <tbody id="movTbody"></tbody>
                     </table>
                 </div>
                 <div style="padding:10px 16px;background:var(--violet-light);
                             font-size:12px;color:var(--violet-dark);font-weight:600"
-                     id="movCount">0 row(s)</div>
+                     id="movCount">0 ligne(s)</div>
             </div>
         </div>
 
-        <!-- MONTHLY REPORT -->
+        <!-- RAPPORT MENSUEL -->
         <div class="tab-panel" id="tabReport">
             <div class="card">
-                <div class="card-header">📈 Monthly Report — Dépense Exploitation Prestapay</div>
+                <div class="card-header">📈 Rapport Mensuel — Dépense Exploitation Prestapay</div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-                        <div class="form-group"><label>Month</label>
+                        <div class="form-group"><label>MOIS</label>
                             <input type="month" id="reportMonth" class="form-control"></div>
-                        <div class="form-group"><label>Categories (multi-select)</label>
+                        <div class="form-group"><label>CATÉGORIES (sélection multiple)</label>
                             <select id="reportCategories" class="form-control" multiple
                                     style="height:auto;min-height:42px;padding:6px"></select></div>
                     </div>
                     <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-                        <button class="btn btn-violet" id="btnGenerateReport">📊 Generate</button>
+                        <button class="btn btn-violet" id="btnGenerateReport">📊 Générer</button>
                         <button class="btn btn-success" id="btnReportExcel">📗 Excel</button>
                         <button class="btn btn-danger"  id="btnReportPDF">📕 PDF</button>
-                        <button class="btn btn-warning" id="btnSaveClosing">💾 Save Closing as Opening</button>
+                        <button class="btn btn-warning" id="btnSaveClosing">💾 Enregistrer Solde Fin</button>
                     </div>
                     <div id="reportOutput"></div>
                 </div>
             </div>
         </div>
 
-        <!-- MANAGE -->
+        <!-- CATÉGORIES & TYPES -->
         <div class="tab-panel" id="tabManage">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
                 <div class="card">
-                    <div class="card-header">🗂️ Categories</div>
+                    <div class="card-header">🗂️ Catégories</div>
                     <div class="card-body">
-                        <div class="form-group"><label>Category Name</label>
-                            <input type="text" id="newCatName" class="form-control"></div>
-                        <div class="form-group"><label>Kind</label>
+                        <div class="form-group"><label>NOM DE LA CATÉGORIE</label>
+                            <input type="text" id="newCatName" class="form-control" placeholder="EX: SALAIRES"></div>
+                        <div class="form-group"><label>TYPE DE CATÉGORIE</label>
                             <select id="newCatKind" class="form-control">
-                                <option value="Dépenses">Dépenses (Expense)</option>
-                                <option value="Recettes">Recettes (Income)</option>
+                                <option value="Dépenses">Dépenses</option>
+                                <option value="Recettes">Recettes</option>
                             </select></div>
-                        <button class="btn btn-violet btn-block" id="btnAddCategory">➕ Add Category</button>
+                        <button class="btn btn-violet btn-block" id="btnAddCategory">➕ Ajouter Catégorie</button>
                         <div style="margin-top:16px;max-height:400px;overflow-y:auto">
                             <table class="data" style="font-size:12px">
-                                <thead><tr><th>Name</th><th>Kind</th><th>Actions</th></tr></thead>
+                                <thead><tr><th>NOM</th><th>TYPE</th><th>ACTIONS</th></tr></thead>
                                 <tbody id="catTbody"></tbody>
                             </table>
                         </div>
@@ -173,14 +179,14 @@
                 <div class="card">
                     <div class="card-header">🏷️ Types</div>
                     <div class="card-body">
-                        <div class="form-group"><label>Parent Category</label>
+                        <div class="form-group"><label>CATÉGORIE PARENTE</label>
                             <select id="typeParentCat" class="form-control"></select></div>
-                        <div class="form-group"><label>Type Name</label>
-                            <input type="text" id="newTypeName" class="form-control"></div>
-                        <button class="btn btn-violet btn-block" id="btnAddType">➕ Add Type</button>
+                        <div class="form-group"><label>NOM DU TYPE</label>
+                            <input type="text" id="newTypeName" class="form-control" placeholder="EX: SALAIRE"></div>
+                        <button class="btn btn-violet btn-block" id="btnAddType">➕ Ajouter Type</button>
                         <div style="margin-top:16px;max-height:400px;overflow-y:auto">
                             <table class="data" style="font-size:12px">
-                                <thead><tr><th>Name</th><th>Category</th><th>Actions</th></tr></thead>
+                                <thead><tr><th>NOM</th><th>CATÉGORIE</th><th>ACTIONS</th></tr></thead>
                                 <tbody id="typeTbody"></tbody>
                             </table>
                         </div>
@@ -189,18 +195,18 @@
             </div>
         </div>
 
-        <!-- USERS -->
+        <!-- UTILISATEURS -->
         <div class="tab-panel" id="tabUsers">
             <div class="table-wrap">
                 <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark)">👥 Users Management</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">👥 Gestion des Utilisateurs</span>
                     <button class="btn btn-violet" id="btnAddUser"
-                            style="margin-left:auto">➕ New User</button>
+                            style="margin-left:auto">➕ Nouvel Utilisateur</button>
                 </div>
                 <table class="data">
                     <thead><tr>
-                        <th>ID</th><th>Username</th><th>Role</th>
-                        <th>Permissions</th><th>Status</th><th>Actions</th>
+                        <th>ID</th><th>NOM D'UTILISATEUR</th><th>RÔLE</th>
+                        <th>PERMISSIONS</th><th>STATUT</th><th>ACTIONS</th>
                     </tr></thead>
                     <tbody id="usersTbody"></tbody>
                 </table>
@@ -209,40 +215,40 @@
     </main>
 </div>
 
-<!-- USER MODAL -->
+<!-- MODAL UTILISATEUR -->
 <div class="modal-overlay" id="userModal">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="userModalTitle">New User</h3>
+            <h3 id="userModalTitle">Nouvel Utilisateur</h3>
             <button class="modal-close" id="userModalClose">✕</button>
         </div>
         <div class="modal-body">
-            <div class="form-group"><label>Username</label>
+            <div class="form-group"><label>NOM D'UTILISATEUR</label>
                 <input type="text" id="inpUserName" class="form-control"></div>
-            <div class="form-group"><label>Password</label>
+            <div class="form-group"><label>MOT DE PASSE</label>
                 <input type="text" id="inpUserPass" class="form-control"></div>
-            <div class="form-group"><label>Role</label>
+            <div class="form-group"><label>RÔLE</label>
                 <select id="selUserRole" class="form-control">
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
+                    <option value="user">Utilisateur</option>
+                    <option value="admin">Administrateur</option>
                 </select></div>
-            <div class="form-group"><label>Permissions</label>
+            <div class="form-group"><label>PERMISSIONS</label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
-                    <label><input type="checkbox" class="perm-check" value="view"> View</label>
-                    <label><input type="checkbox" class="perm-check" value="add"> Add</label>
-                    <label><input type="checkbox" class="perm-check" value="edit"> Edit</label>
-                    <label><input type="checkbox" class="perm-check" value="delete"> Delete</label>
-                    <label><input type="checkbox" class="perm-check" value="export"> Export</label>
-                    <label><input type="checkbox" class="perm-check" value="manage_users"> Manage Users</label>
+                    <label><input type="checkbox" class="perm-check" value="view"> Voir</label>
+                    <label><input type="checkbox" class="perm-check" value="add"> Ajouter</label>
+                    <label><input type="checkbox" class="perm-check" value="edit"> Modifier</label>
+                    <label><input type="checkbox" class="perm-check" value="delete"> Supprimer</label>
+                    <label><input type="checkbox" class="perm-check" value="export"> Exporter</label>
+                    <label><input type="checkbox" class="perm-check" value="manage_users"> Gérer Utilisateurs</label>
                 </div></div>
             <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
-                <input type="checkbox" id="chkActive" checked> Active
+                <input type="checkbox" id="chkActive" checked> Compte Actif
             </label>
         </div>
         <div class="modal-footer">
             <button class="btn btn-gray"
-                    onclick="document.getElementById('userModal').classList.remove('open')">Cancel</button>
-            <button class="btn btn-violet" id="btnSaveUser">💾 Save</button>
+                    onclick="document.getElementById('userModal').classList.remove('open')">Annuler</button>
+            <button class="btn btn-violet" id="btnSaveUser">💾 Enregistrer</button>
         </div>
     </div>
 </div>
