@@ -1,5 +1,5 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Application Logic v2.4
+   MY CAISSE PRESTAPAY — Application Logic v2.4 (CORRIGÉ)
    ========================================================= */
 
 const SESSION = (() => {
@@ -1192,45 +1192,47 @@ async function exportBackupJSON() {
 }
 
 /* =========================================================
-   INITIALISATION
+   ✅ ربط جميع الأحداث — دالة مستقلة
    ========================================================= */
-document.addEventListener('DOMContentLoaded', async () => {
-    if (!SESSION) return;
-    renderHeader();
-    clearForm();
+function bindAllEvents() {
+    // Onglets (Tabs) — الحل الرئيسي
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            const panel = document.getElementById(tab.dataset.tab);
+            if (panel) panel.classList.add('active');
+            if (tab.dataset.tab === 'tabSettings') refreshSettings();
+        });
+    });
 
-    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    document.getElementById('filterFrom').value = firstDay.toISOString().slice(0,10);
-    document.getElementById('filterTo').value = todayISO();
-    document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
+    // Formulaire
+    document.getElementById('opTypeGroup')?.addEventListener('change', refreshCategorySelect);
+    document.getElementById('selCategory')?.addEventListener('change', refreshTypeSelect);
+    document.getElementById('btnSave')?.addEventListener('click', saveMovement);
+    document.getElementById('btnClear')?.addEventListener('click', clearForm);
 
-    await refreshCategorySelect();
-    await refreshMovements();
-    await refreshUsersTable();
-    await refreshManageTables();
-    await refreshSettings();
-
-    document.getElementById('opTypeGroup').addEventListener('change', refreshCategorySelect);
-    document.getElementById('selCategory').addEventListener('change', refreshTypeSelect);
-    document.getElementById('btnSave').addEventListener('click', saveMovement);
-    document.getElementById('btnClear').addEventListener('click', clearForm);
-    document.getElementById('btnFilter').addEventListener('click', refreshMovements);
-    document.getElementById('searchInput').addEventListener('input', refreshMovements);
-
+    // Filtres / Recherche
+    document.getElementById('btnFilter')?.addEventListener('click', refreshMovements);
+    document.getElementById('searchInput')?.addEventListener('input', refreshMovements);
     document.getElementById('btnResetFilter')?.addEventListener('click', () => {
         document.getElementById('filterFrom').value = '2000-01-01';
         document.getElementById('filterTo').value = todayISO();
         refreshMovements();
     });
 
+    // Exports
     document.querySelectorAll('[data-export]').forEach(b =>
         b.addEventListener('click', () => exportData(b.dataset.export)));
 
-    document.getElementById('fileInput').addEventListener('change', e => {
+    // Import
+    document.getElementById('fileInput')?.addEventListener('change', e => {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
     });
 
-    document.getElementById('movTbody').addEventListener('click', async (e) => {
+    // Actions table Mouvements
+    document.getElementById('movTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.edit;
         const delId  = e.target.dataset.del;
         if (editId) await editMovement(Number(editId));
@@ -1241,6 +1243,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Utilisateurs
     document.getElementById('usersTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.editUser;
         const delId  = e.target.dataset.delUser;
@@ -1259,10 +1262,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('userModalClose')?.addEventListener('click', () =>
         document.getElementById('userModal').classList.remove('open'));
 
+    // Catégories & Types
     document.getElementById('btnAddCategory')?.addEventListener('click', addCategory);
     document.getElementById('btnAddType')?.addEventListener('click', addType);
     document.getElementById('typeParentCat')?.addEventListener('change', refreshTypesTable);
-
     document.getElementById('catTbody')?.addEventListener('click', (e) => {
         const id = e.target.dataset.delCat;
         const name = e.target.dataset.catName;
@@ -1273,31 +1276,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (id) deleteType(Number(id));
     });
 
+    // Rapport
     document.getElementById('btnGenerateReport')?.addEventListener('click', generateReport);
     document.getElementById('btnReportExcel')?.addEventListener('click', exportReportExcel);
     document.getElementById('btnReportPDF')?.addEventListener('click', exportReportPDF);
     document.getElementById('btnSaveClosing')?.addEventListener('click', saveClosingAsOpening);
 
+    // Paramètres
     document.getElementById('btnSaveOpening')?.addEventListener('click', saveOpeningBalance);
     document.getElementById('btnDeleteAllMvt')?.addEventListener('click', deleteAllMovements);
     document.getElementById('btnRecalcBalance')?.addEventListener('click', recalcBalanceGlobal);
     document.getElementById('btnExportBackup')?.addEventListener('click', exportBackupJSON);
 
-    document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-            tab.classList.add('active');
-            document.getElementById(tab.dataset.tab).classList.add('active');
-            if (tab.dataset.tab === 'tabSettings') refreshSettings();
-        });
-    });
-
-    document.getElementById('btnLogout').addEventListener('click', () => {
+    // Déconnexion
+    document.getElementById('btnLogout')?.addEventListener('click', () => {
         if (confirm('Se déconnecter ?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
             sessionStorage.removeItem('mycaisse_token');
             window.location.href = 'index.html';
         }
     });
+}
+
+/* =========================================================
+   INITIALISATION
+   ========================================================= */
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!SESSION) return;
+    renderHeader();
+    clearForm();
+
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    document.getElementById('filterFrom').value = firstDay.toISOString().slice(0,10);
+    document.getElementById('filterTo').value = todayISO();
+    document.getElementById('reportMonth').value = new Date().toISOString().slice(0,7);
+
+    // ✅ 1) اربط الأحداث أولاً — قبل أي await
+    bindAllEvents();
+
+    // ✅ 2) ثم حمّل البيانات — كل واحدة في try/catch منفصل
+    try { await refreshCategorySelect(); } catch (e) { console.error('refreshCategorySelect:', e); }
+    try { await refreshMovements(); }      catch (e) { console.error('refreshMovements:', e); }
+    try { await refreshUsersTable(); }     catch (e) { console.error('refreshUsersTable:', e); }
+    try { await refreshManageTables(); }   catch (e) { console.error('refreshManageTables:', e); }
+    try { await refreshSettings(); }       catch (e) { console.error('refreshSettings:', e); }
 });
