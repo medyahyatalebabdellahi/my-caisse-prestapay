@@ -1,5 +1,6 @@
 /* =========================================================
-   MY CAISSE PRESTAPAY — Application Logic v2.0
+   MY CAISSE PRESTAPAY — Application Logic v2.1
+   Site : Français
    ========================================================= */
 
 const SESSION = (() => {
@@ -17,7 +18,7 @@ function hasPerm(p) {
     return SESSION.permissions?.includes(p) || false;
 }
 
-/* ---------- Utilities ---------- */
+/* ---------- Utilitaires ---------- */
 const fmtMoney = (v) => {
     const n = Number(v || 0);
     return n.toLocaleString('fr-FR', { minimumFractionDigits: 2,
@@ -59,7 +60,7 @@ async function apiCall(action, payload = {}) {
 }
 
 /* =========================================================
-   LOCAL DB (offline fallback)
+   LOCAL DB
    ========================================================= */
 const LocalDB = {
     _key: 'mycaisse_data_v2',
@@ -138,12 +139,12 @@ function localApi(action, payload) {
             if (u && u.password === payload.password)
                 return { success: true, user: { username: payload.username.toUpperCase(),
                         role: u.role, permissions: u.permissions }, token: 'local_' + Date.now() };
-            return { success: false, error: 'Invalid credentials' };
+            return { success: false, error: 'Identifiants incorrects' };
         }
         case 'getCategories': return { success: true, categories: LocalDB.getCategories() };
         case 'addCategory': {
             const c = LocalDB.addCategory(payload.name, payload.kind);
-            return c ? { success: true, id: c.id } : { success: false, error: 'Exists' };
+            return c ? { success: true, id: c.id } : { success: false, error: 'Existe déjà' };
         }
         case 'deleteCategory': LocalDB.deleteCategory(payload.id, payload.name); return { success: true };
         case 'getTypes': return { success: true, types: LocalDB.getTypes(payload.category_id) };
@@ -159,17 +160,17 @@ function localApi(action, payload) {
         case 'getSetting': return { success: true, value: LocalDB.getOpeningBalance() };
         case 'setSetting': LocalDB.setOpeningBalance(payload.value); return { success: true };
         case 'getUsers': return { success: true, users: [] };
-        default: return { success: false, error: 'Unknown action' };
+        default: return { success: false, error: 'Action inconnue' };
     }
 }
 
 /* =========================================================
-   RENDER HEADER
+   HEADER
    ========================================================= */
 function renderHeader() {
     document.getElementById('userName').textContent = SESSION.username;
     document.getElementById('userRole').textContent =
-        SESSION.role === 'admin' ? 'Administrator' : 'User';
+        SESSION.role === 'admin' ? 'Administrateur' : 'Utilisateur';
     document.getElementById('userAvatar').textContent = SESSION.username.charAt(0).toUpperCase();
     if (!hasPerm('manage_users') && SESSION.role !== 'admin')
         document.querySelectorAll('[data-admin-only]').forEach(el => el.style.display = 'none');
@@ -180,7 +181,7 @@ function renderHeader() {
 }
 
 /* =========================================================
-   BANNER
+   BANNIÈRE
    ========================================================= */
 async function refreshBanner() {
     const [setRes, mvtRes] = await Promise.all([
@@ -198,7 +199,7 @@ async function refreshBanner() {
 }
 
 /* =========================================================
-   CATEGORY & TYPE SELECTS
+   SÉLECTEURS CATÉGORIE & TYPE
    ========================================================= */
 async function refreshCategorySelect() {
     const kind = document.querySelector('input[name="opType"]:checked').value + 's';
@@ -222,7 +223,7 @@ async function refreshTypeSelect() {
     const types = res.types || [];
     const typeSel = document.getElementById('selType');
     typeSel.innerHTML = '';
-    if (!types.length) { typeSel.innerHTML = '<option value="">(no type)</option>'; return; }
+    if (!types.length) { typeSel.innerHTML = '<option value="">(aucun type)</option>'; return; }
     types.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.id; opt.textContent = t.name; opt.dataset.name = t.name;
@@ -231,7 +232,7 @@ async function refreshTypeSelect() {
 }
 
 /* =========================================================
-   MOVEMENTS
+   MOUVEMENTS
    ========================================================= */
 let CURRENT_EDIT_ID = null;
 
@@ -277,7 +278,7 @@ async function refreshMovements() {
             </td>`;
         tbody.appendChild(tr);
     });
-    document.getElementById('movCount').textContent = list.length + ' row(s)';
+    document.getElementById('movCount').textContent = list.length + ' ligne(s)';
     refreshBanner();
 }
 
@@ -287,8 +288,8 @@ function clearForm() {
     document.getElementById('inpDescription').value = '';
     document.getElementById('inpAmount').value = '';
     document.getElementById('inpDate').value = toFRDate(todayISO());
-    document.getElementById('formTitle').textContent = 'New Movement';
-    document.getElementById('btnSave').textContent = '➕ Add';
+    document.getElementById('formTitle').textContent = 'Nouveau Mouvement';
+    document.getElementById('btnSave').textContent = '➕ Ajouter';
 }
 
 async function saveMovement() {
@@ -302,7 +303,7 @@ async function saveMovement() {
     const typeName = typeSel.options[typeSel.selectedIndex]?.dataset?.name || '';
     const type   = document.querySelector('input[name="opType"]:checked').value;
 
-    if (!dateFR || amount <= 0) { toast('⚠️ Date and amount required.', 'warn'); return; }
+    if (!dateFR || amount <= 0) { toast('⚠️ Date et montant obligatoires.', 'warn'); return; }
 
     const iso = toISODate(dateFR);
     const mvt = {
@@ -314,10 +315,10 @@ async function saveMovement() {
     if (CURRENT_EDIT_ID) {
         mvt.id = CURRENT_EDIT_ID;
         await apiCall('updateMovement', mvt);
-        toast('✅ Movement updated.', 'success');
+        toast('✅ Mouvement modifié.', 'success');
     } else {
         await apiCall('addMovement', mvt);
-        toast('✅ Movement added.', 'success');
+        toast('✅ Mouvement ajouté.', 'success');
     }
     clearForm(); refreshMovements();
 }
@@ -341,13 +342,13 @@ async function editMovement(id) {
     const typeSel = document.getElementById('selType');
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
-    document.getElementById('formTitle').textContent = 'Edit Movement';
-    document.getElementById('btnSave').textContent = '💾 Update';
+    document.getElementById('formTitle').textContent = 'Modifier le Mouvement';
+    document.getElementById('btnSave').textContent = '💾 Enregistrer';
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* =========================================================
-   CATEGORIES & TYPES MANAGEMENT
+   CATÉGORIES & TYPES
    ========================================================= */
 async function refreshManageTables() {
     const catRes = await apiCall('getCategories');
@@ -401,21 +402,21 @@ async function refreshTypesTable() {
 async function addCategory() {
     const name = document.getElementById('newCatName').value.trim();
     const kind = document.getElementById('newCatKind').value;
-    if (!name) { toast('⚠️ Enter category name', 'warn'); return; }
+    if (!name) { toast('⚠️ Entrez le nom de la catégorie', 'warn'); return; }
     const res = await apiCall('addCategory', { name, kind });
     if (res.success) {
-        toast('✅ Category added', 'success');
+        toast('✅ Catégorie ajoutée', 'success');
         document.getElementById('newCatName').value = '';
         refreshManageTables();
         refreshCategorySelect();
-    } else toast('❌ ' + (res.error || 'Failed'), 'error');
+    } else toast('❌ ' + (res.error || 'Échec'), 'error');
 }
 
 async function deleteCategory(id, name) {
-    if (!confirm(`Delete category "${name}"?`)) return;
+    if (!confirm(`Supprimer la catégorie "${name}" ?`)) return;
     const res = await apiCall('deleteCategory', { id, name });
     if (res.success) {
-        toast('✅ Category deleted', 'success');
+        toast('✅ Catégorie supprimée', 'success');
         refreshManageTables();
         refreshCategorySelect();
     }
@@ -424,29 +425,29 @@ async function deleteCategory(id, name) {
 async function addType() {
     const catId = document.getElementById('typeParentCat').value;
     const name  = document.getElementById('newTypeName').value.trim();
-    if (!name) { toast('⚠️ Enter type name', 'warn'); return; }
+    if (!name) { toast('⚠️ Entrez le nom du type', 'warn'); return; }
     const res = await apiCall('addType', { category_id: catId, name });
     if (res.success) {
-        toast('✅ Type added', 'success');
+        toast('✅ Type ajouté', 'success');
         document.getElementById('newTypeName').value = '';
         refreshTypesTable();
-    } else toast('❌ ' + (res.error || 'Failed'), 'error');
+    } else toast('❌ ' + (res.error || 'Échec'), 'error');
 }
 
 async function deleteType(id) {
-    if (!confirm('Delete this type?')) return;
+    if (!confirm('Supprimer ce type ?')) return;
     const res = await apiCall('deleteType', { id });
-    if (res.success) { toast('✅ Type deleted', 'success'); refreshTypesTable(); }
+    if (res.success) { toast('✅ Type supprimé', 'success'); refreshTypesTable(); }
 }
 
 /* =========================================================
-   MONTHLY REPORT
+   RAPPORT MENSUEL
    ========================================================= */
 let CURRENT_REPORT = null;
 
 async function generateReport() {
     const month = document.getElementById('reportMonth').value;
-    if (!month) { toast('⚠️ Select a month', 'warn'); return; }
+    if (!month) { toast('⚠️ Sélectionnez un mois', 'warn'); return; }
     const selectedCats = Array.from(document.getElementById('reportCategories')
         .selectedOptions).map(o => o.value);
 
@@ -484,8 +485,8 @@ async function generateReport() {
 }
 
 function renderReport(r) {
-    const monthNames = ['January','February','March','April','May','June',
-                        'July','August','September','October','November','December'];
+    const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin',
+                        'Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
     const [y, m] = r.month.split('-');
     const monthLabel = monthNames[parseInt(m)-1] + ' ' + y;
 
@@ -497,26 +498,26 @@ function renderReport(r) {
         <div class="card-body">
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
                 <div style="background:var(--violet-light);padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:var(--blue-dark)">OPENING</div>
+                    <div style="font-size:11px;font-weight:700;color:var(--blue-dark)">SOLDE DÉBUT</div>
                     <div style="font-size:16px;font-weight:800;color:var(--violet-dark)">${fmtMoney(r.opening)}</div>
                 </div>
                 <div style="background:#DCFCE7;padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:#166534">INCOME</div>
+                    <div style="font-size:11px;font-weight:700;color:#166534">RECETTES</div>
                     <div style="font-size:16px;font-weight:800;color:#059669">${fmtMoney(r.totalRec)}</div>
                 </div>
                 <div style="background:#FEE2E2;padding:12px;border-radius:10px;text-align:center">
-                    <div style="font-size:11px;font-weight:700;color:#991B1B">EXPENSES</div>
+                    <div style="font-size:11px;font-weight:700;color:#991B1B">DÉPENSES</div>
                     <div style="font-size:16px;font-weight:800;color:#DC2626">${fmtMoney(r.totalDep)}</div>
                 </div>
                 <div style="background:linear-gradient(135deg,#7C3AED,#6D28D9);padding:12px;border-radius:10px;text-align:center;color:#fff">
-                    <div style="font-size:11px;font-weight:700">CLOSING</div>
+                    <div style="font-size:11px;font-weight:700">SOLDE FIN</div>
                     <div style="font-size:16px;font-weight:800">${fmtMoney(r.closing)}</div>
                 </div>
             </div>
             <table class="data" style="font-size:13px">
                 <thead><tr>
-                    <th>CATEGORY</th><th>TYPE</th>
-                    <th style="text-align:right">AMOUNT</th>
+                    <th>CATÉGORIE</th><th>TYPE</th>
+                    <th style="text-align:right">MONTANT</th>
                 </tr></thead><tbody>`;
 
     Object.keys(r.grouped).sort().forEach(cat => {
@@ -547,7 +548,7 @@ function renderReport(r) {
 }
 
 function exportReportExcel() {
-    if (!CURRENT_REPORT) { toast('⚠️ Generate report first', 'warn'); return; }
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
     const monthLabel = m + '-' + y;
@@ -555,12 +556,12 @@ function exportReportExcel() {
         ['MY CAISSE PRESTAPAY'],
         ['DÉPENSE EXPLOITATION PRESTAPAY — ' + monthLabel],
         [],
-        ['Opening Balance', r.opening],
-        ['Total Income', r.totalRec],
-        ['Total Expenses', r.totalDep],
-        ['Closing Balance', r.closing],
+        ['Solde début', r.opening],
+        ['Total Recettes', r.totalRec],
+        ['Total Dépenses', r.totalDep],
+        ['Solde fin', r.closing],
         [],
-        ['CATEGORY', 'TYPE', 'AMOUNT (MRU)']
+        ['CATÉGORIE', 'TYPE', 'MONTANT (MRU)']
     ];
     Object.keys(r.grouped).sort().forEach(cat => {
         const g = r.grouped[cat];
@@ -570,13 +571,13 @@ function exportReportExcel() {
     data.push(['', 'TOTAL DÉPENSES', r.totalDep]);
     const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Report');
+    XLSX.utils.book_append_sheet(wb, ws, 'Rapport');
     XLSX.writeFile(wb, `Rapport_${monthLabel}.xlsx`);
-    toast('✅ Excel exported', 'success');
+    toast('✅ Excel exporté', 'success');
 }
 
 function exportReportPDF() {
-    if (!CURRENT_REPORT) { toast('⚠️ Generate report first', 'warn'); return; }
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
     const r = CURRENT_REPORT;
     const [y, m] = r.month.split('-');
     const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin',
@@ -595,10 +596,10 @@ function exportReportPDF() {
 
     doc.setTextColor(30,58,138); doc.setFontSize(10);
     let y0 = 42;
-    doc.text('Opening Balance : ' + fmtMoney(r.opening), 15, y0);
-    doc.text('Total Income : ' + fmtMoney(r.totalRec), 15, y0 + 6);
-    doc.text('Total Expenses : ' + fmtMoney(r.totalDep), 15, y0 + 12);
-    doc.text('Closing Balance : ' + fmtMoney(r.closing), 15, y0 + 18);
+    doc.text('Solde début : ' + fmtMoney(r.opening), 15, y0);
+    doc.text('Total Recettes : ' + fmtMoney(r.totalRec), 15, y0 + 6);
+    doc.text('Total Dépenses : ' + fmtMoney(r.totalDep), 15, y0 + 12);
+    doc.text('Solde fin : ' + fmtMoney(r.closing), 15, y0 + 18);
 
     const rows = [];
     Object.keys(r.grouped).sort().forEach(cat => {
@@ -626,20 +627,20 @@ function exportReportPDF() {
         theme: 'grid'
     });
     doc.save(`Rapport_${m}_${y}.pdf`);
-    toast('✅ PDF exported', 'success');
+    toast('✅ PDF exporté', 'success');
 }
 
 async function saveClosingAsOpening() {
-    if (!CURRENT_REPORT) { toast('⚠️ Generate report first', 'warn'); return; }
-    if (!confirm(`Save closing balance ${fmtMoney(CURRENT_REPORT.closing)} as new opening balance?`)) return;
+    if (!CURRENT_REPORT) { toast('⚠️ Générez d\'abord le rapport', 'warn'); return; }
+    if (!confirm(`Enregistrer le solde fin ${fmtMoney(CURRENT_REPORT.closing)} comme nouveau solde début ?`)) return;
     const res = await apiCall('setSetting', {
         key: 'opening_balance', value: CURRENT_REPORT.closing
     });
-    if (res.success) { toast('✅ Opening balance updated', 'success'); refreshBanner(); }
+    if (res.success) { toast('✅ Solde début mis à jour', 'success'); refreshBanner(); }
 }
 
 /* =========================================================
-   EXPORTS (Main)
+   EXPORTS
    ========================================================= */
 async function exportData(format) {
     const from = document.getElementById('filterFrom').value;
@@ -678,11 +679,11 @@ async function exportData(format) {
         });
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Movements');
+        XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
         XLSX.writeFile(wb, `MyCaisse_${stamp}.xlsx`);
-        toast('✅ Excel exported', 'success');
+        toast('✅ Excel exporté', 'success');
     } else if (format === 'csv') {
-        let csv = 'Date,Transaction,Category,Type,Description,Recettes,Depenses,Solde\n';
+        let csv = 'Date,N° Transaction,Catégorie,Type,Description,Recettes,Dépenses,Solde\n';
         let running = opening;
         movements.forEach(m => {
             running += Number(m.recette||0) - Number(m.depense||0);
@@ -691,7 +692,7 @@ async function exportData(format) {
                     .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
         });
         downloadBlob(csv, `MyCaisse_${stamp}.csv`, 'text/csv;charset=utf-8');
-        toast('✅ CSV exported', 'success');
+        toast('✅ CSV exporté', 'success');
     } else if (format === 'pdf') {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -721,7 +722,7 @@ async function exportData(format) {
             headStyles: { fillColor: [124,58,237], textColor: 255 }
         });
         doc.save(`MyCaisse_${stamp}.pdf`);
-        toast('✅ PDF exported', 'success');
+        toast('✅ PDF exporté', 'success');
     } else if (format === 'word') {
         let rows = '';
         let running = opening;
@@ -756,7 +757,7 @@ async function exportData(format) {
         </body></html>`;
         downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }),
                      `MyCaisse_${stamp}.doc`);
-        toast('✅ Word exported', 'success');
+        toast('✅ Word exporté', 'success');
     }
 }
 
@@ -769,60 +770,293 @@ function downloadBlob(data, filename, mime) {
 }
 
 /* =========================================================
-   IMPORT
+   IMPORT (CSV / JSON / Excel / PDF)
    ========================================================= */
 function handleUpload(file) {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const text = e.target.result;
-            if (file.name.endsWith('.csv')) await importCSV(text);
-            else if (file.name.endsWith('.json')) await importJSON(text);
-            else toast('⚠️ CSV or JSON only', 'warn');
-        } catch (err) { toast('❌ ' + err.message, 'error'); }
-    };
-    reader.readAsText(file);
+    const name = file.name.toLowerCase();
+
+    if (name.endsWith('.csv')) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try { await importCSV(e.target.result); }
+            catch (err) { toast('❌ ' + err.message, 'error'); }
+        };
+        reader.readAsText(file);
+    } else if (name.endsWith('.json')) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try { await importJSON(e.target.result); }
+            catch (err) { toast('❌ ' + err.message, 'error'); }
+        };
+        reader.readAsText(file);
+    } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try { await importExcel(e.target.result); }
+            catch (err) { console.error(err); toast('❌ Excel: ' + err.message, 'error'); }
+        };
+        reader.readAsArrayBuffer(file);
+    } else if (name.endsWith('.pdf')) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try { await importPDF(e.target.result); }
+            catch (err) { console.error(err); toast('❌ PDF: ' + err.message, 'error'); }
+        };
+        reader.readAsArrayBuffer(file);
+    } else {
+        toast('⚠️ Formats acceptés : CSV, JSON, Excel, PDF', 'warn');
+    }
 }
 
 async function importCSV(text) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
-    if (lines.length < 2) { toast('⚠️ Empty CSV', 'warn'); return; }
-    let imported = 0;
+    if (lines.length < 2) { toast('⚠️ Fichier CSV vide', 'warn'); return; }
+    const delim = (lines[0].match(/;/g) || []).length > (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const splitLine = (line) => {
+        const result = [];
+        let current = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQuotes && line[i+1] === '"') { current += '"'; i++; }
+                else inQuotes = !inQuotes;
+            } else if (ch === delim && !inQuotes) {
+                result.push(current); current = '';
+            } else current += ch;
+        }
+        result.push(current);
+        return result.map(c => c.trim().replace(/^"|"$/g, ''));
+    };
+    const headers = splitLine(lines[0]).map(h => h.toLowerCase());
+    const idxDate = headers.findIndex(h => h.includes('date'));
+    const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
+    const idxCat  = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
+    const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
+    const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
+    const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
+    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+
+    let imported = 0, skipped = 0;
     for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i].match(/("([^"]|"")*"|[^,]*)(,|$)/g)
-                     .map(c => c.replace(/,$/, '').replace(/^"|"$/g, '').replace(/""/g,'"'));
-        if (cols.length < 5) continue;
-        const [dateStr, trNo, cat, typ, desc, rec, dep] = cols;
-        let iso = dateStr;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) iso = toISODate(dateStr);
+        const cols = splitLine(lines[i]);
+        if (!cols.length) continue;
+        const dateStr = parseDate(cols[idxDate]);
+        if (!dateStr) { skipped++; continue; }
+        const amountRec = idxRec >= 0 ? parseAmount(cols[idxRec]) : 0;
+        const amountDep = idxDep >= 0 ? parseAmount(cols[idxDep]) : 0;
+        if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
+        const split = splitCategoryType(
+            idxCat  >= 0 ? cols[idxCat]  : '',
+            idxType >= 0 ? cols[idxType] : '',
+            idxDesc >= 0 ? cols[idxDesc] : ''
+        );
         await apiCall('addMovement', {
-            date: iso, transaction_no: trNo||'', category: cat||'', type: typ||'',
-            description: desc||'', recette: Number(rec)||0, depense: Number(dep)||0
+            date: dateStr, transaction_no: idxTrNo >= 0 ? cols[idxTrNo] : '',
+            category: split.category, type: split.type, description: split.description,
+            recette: amountRec, depense: amountDep
         });
         imported++;
     }
-    toast(`✅ ${imported} imported`, 'success');
-    refreshMovements();
+    toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
+    refreshMovements(); refreshBanner();
+}
+
+async function importExcel(arrayBuffer) {
+    const data = new Uint8Array(arrayBuffer);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+    if (rows.length < 2) { toast('⚠️ Fichier Excel vide', 'warn'); return; }
+
+    let headerRow = 0;
+    for (let i = 0; i < Math.min(rows.length, 15); i++) {
+        const first = String(rows[i][0] || '').toLowerCase();
+        const joined = rows[i].map(c => String(c).toLowerCase()).join('|');
+        if (first.includes('date') || (joined.includes('date') && joined.includes('transaction'))) {
+            headerRow = i; break;
+        }
+    }
+    const headers = rows[headerRow].map(h => String(h).toLowerCase().trim());
+    const idxDate = headers.findIndex(h => h.includes('date'));
+    const idxTrNo = headers.findIndex(h => h.includes('transaction') || h.includes('n°'));
+    const idxCat  = headers.findIndex(h => h.includes('catégor') || h.includes('categor'));
+    const idxType = headers.findIndex(h => h === 'type' || h.includes('type'));
+    const idxDesc = headers.findIndex(h => h.includes('description') || h.includes('libell'));
+    const idxRec  = headers.findIndex(h => h.includes('recette') || h.includes('income'));
+    const idxDep  = headers.findIndex(h => h.includes('dépense') || h.includes('depense') || h.includes('expense'));
+
+    let imported = 0, skipped = 0;
+    for (let i = headerRow + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length === 0) continue;
+        const firstCell = String(row[0] || '').toLowerCase();
+        if (firstCell.includes('total') || firstCell.includes('solde début') ||
+            firstCell.includes('solde fin')) continue;
+        const dateStr = parseDate(row[idxDate]);
+        if (!dateStr) { skipped++; continue; }
+        const amountRec = idxRec >= 0 ? parseAmount(row[idxRec]) : 0;
+        const amountDep = idxDep >= 0 ? parseAmount(row[idxDep]) : 0;
+        if (amountRec === 0 && amountDep === 0) { skipped++; continue; }
+        const split = splitCategoryType(
+            idxCat  >= 0 ? row[idxCat]  : '',
+            idxType >= 0 ? row[idxType] : '',
+            idxDesc >= 0 ? row[idxDesc] : ''
+        );
+        await apiCall('addMovement', {
+            date: dateStr,
+            transaction_no: idxTrNo >= 0 ? String(row[idxTrNo] || '') : '',
+            category: split.category, type: split.type, description: split.description,
+            recette: amountRec, depense: amountDep
+        });
+        imported++;
+    }
+    toast(`✅ Importés : ${imported} | Ignorés : ${skipped}`, 'success');
+    refreshMovements(); refreshBanner();
+}
+
+async function importPDF(arrayBuffer) {
+    if (!window.pdfjsLib) { toast('❌ Bibliothèque PDF non chargée', 'error'); return; }
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    toast(`📄 Lecture PDF (${pdf.numPages} pages)...`, 'warn');
+    let fullText = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        fullText += content.items.map(i => i.str).join(' ') + '\n';
+    }
+    const movements = parsePDFMovements(fullText);
+    if (!movements.length) { toast('⚠️ Aucun mouvement détecté', 'warn'); return; }
+    let imported = 0;
+    for (const m of movements) {
+        const res = await apiCall('addMovement', m);
+        if (res.success) imported++;
+    }
+    toast(`✅ ${imported} mouvement(s) importé(s) du PDF`, 'success');
+    refreshMovements(); refreshBanner();
+}
+
+function parsePDFMovements(text) {
+    const movements = [];
+    const lines = text.split(/(?=\d{2}\/\d{2}\/\d{4})/g);
+    for (const chunk of lines) {
+        const trimmed = chunk.trim();
+        if (!trimmed) continue;
+        const dateMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (!dateMatch) continue;
+        const isoDate = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+        const trMatch = trimmed.match(/(TR\d+)/);
+        const trNo = trMatch ? trMatch[1] : '';
+        let rest = trimmed.replace(/^\d{2}\/\d{2}\/\d{4}\s*/, '').replace(/TR\d+\s*/, '');
+        const numbers = rest.match(/[\d\s]+[.,]\d{2}/g) || [];
+        if (!numbers.length) continue;
+        const amountStr = numbers.length >= 2 ? numbers[numbers.length - 2] : numbers[0];
+        const amount = parseAmount(amountStr);
+        if (amount <= 0) continue;
+        let desc = rest.replace(/[\d\s]+[.,]\d{2}/g, ' ').replace(/\s+/g, ' ').trim();
+        const split = splitCategoryType('', '', desc);
+        const isIncome = /AVANCE|RECETTES|VENTES|DON|REVENU/i.test(split.category);
+        movements.push({
+            date: isoDate, transaction_no: trNo,
+            category: split.category, type: split.type, description: split.description,
+            recette: isIncome ? amount : 0, depense: isIncome ? 0 : amount
+        });
+    }
+    return movements;
 }
 
 async function importJSON(text) {
     const data = JSON.parse(text);
     if (Array.isArray(data)) {
-        for (const m of data) await apiCall('addMovement', m);
-        toast(`✅ ${data.length} imported`, 'success');
+        for (const m of data) {
+            const split = splitCategoryType(m.category, m.type, m.description);
+            await apiCall('addMovement', {
+                date: m.date, transaction_no: m.transaction_no || '',
+                category: split.category, type: split.type, description: split.description,
+                recette: Number(m.recette) || 0, depense: Number(m.depense) || 0
+            });
+        }
+        toast(`✅ ${data.length} importé(s)`, 'success');
         refreshMovements();
     }
 }
 
 /* =========================================================
-   USERS MANAGEMENT
+   HELPERS IMPORT
+   ========================================================= */
+function splitCategoryType(rawCategory, rawType, rawDescription) {
+    let category = String(rawCategory || '').trim().toUpperCase();
+    let type     = String(rawType || '').trim().toUpperCase();
+    let desc     = String(rawDescription || '').trim();
+    const DASH = /\s*[—–]\s*|\s+-\s+/;
+    if (category && !type && DASH.test(category)) {
+        const parts = category.split(DASH);
+        category = parts[0].trim();
+        type = parts.slice(1).join(' — ').trim();
+    } else if (desc && category && desc.toUpperCase().startsWith(category)) {
+        const pattern = new RegExp(
+            '^' + category.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+            + '\\s*[—–-]?\\s*'
+            + (type ? type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '')
+            + '\\s*', 'i'
+        );
+        desc = desc.replace(pattern, '').trim();
+    }
+    if (desc && DASH.test(desc) && !type) {
+        const descParts = desc.split(DASH);
+        if (descParts.length >= 2 && descParts[1].length < 60) {
+            const possibleCat = descParts[0].trim().toUpperCase();
+            const possibleTyp = descParts[1].trim().toUpperCase();
+            if (possibleCat.length > 3 && possibleTyp.length > 2) {
+                if (!category) category = possibleCat;
+                if (!type)     type     = possibleTyp;
+                desc = descParts.slice(2).join(' — ').trim();
+            }
+        }
+    }
+    desc = desc.replace(/\s+/g, ' ').replace(/^[—–\-,\s]+/, '').replace(/[—–\-,\s]+$/, '').trim();
+    return { category, type, description: desc };
+}
+
+function parseDate(v) {
+    if (!v && v !== 0) return '';
+    if (typeof v === 'number' && v > 20000 && v < 60000) {
+        const ms = (v - 25569) * 86400 * 1000;
+        return new Date(ms).toISOString().slice(0, 10);
+    }
+    const s = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const match = s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+    if (match) {
+        let [_, d, m, y] = match;
+        if (y.length === 2) y = '20' + y;
+        return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    }
+    const parsed = new Date(s);
+    if (!isNaN(parsed)) return parsed.toISOString().slice(0, 10);
+    return '';
+}
+
+function parseAmount(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    if (typeof v === 'number') return v;
+    let s = String(v).replace(/\s/g, '').replace(/[MRU€$£]/gi, '').trim();
+    if (s.includes(',') && s.includes('.')) s = s.replace(/,/g, '');
+    else if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
+
+/* =========================================================
+   UTILISATEURS
    ========================================================= */
 async function refreshUsersTable() {
     const tbody = document.getElementById('usersTbody');
     if (!tbody) return;
     const res = await apiCall('getUsers');
-    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6">Admin only</td></tr>'; return; }
+    if (!res.success) { tbody.innerHTML = '<tr><td colspan="6">Admin uniquement</td></tr>'; return; }
     tbody.innerHTML = '';
     (res.users || []).forEach(u => {
         const tr = document.createElement('tr');
@@ -831,7 +1065,7 @@ async function refreshUsersTable() {
             <td><strong>${u.username}</strong></td>
             <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role}</span></td>
             <td>${(u.permissions||[]).join(', ')}</td>
-            <td><span class="badge ${u.active?'badge-active':'badge-inactive'}">${u.active?'Active':'Inactive'}</span></td>
+            <td><span class="badge ${u.active?'badge-active':'badge-inactive'}">${u.active?'Actif':'Inactif'}</span></td>
             <td>
                 <button class="btn btn-gray" data-edit-user="${u.id}">✏️</button>
                 <button class="btn btn-danger" data-del-user="${u.id}">🗑</button>
@@ -843,7 +1077,7 @@ async function refreshUsersTable() {
 function openUserModal(user) {
     const isNew = !user;
     user = user || { username:'', password:'', role:'user', permissions:['view'], active:true };
-    document.getElementById('userModalTitle').textContent = isNew ? 'New User' : 'Edit User';
+    document.getElementById('userModalTitle').textContent = isNew ? 'Nouvel Utilisateur' : 'Modifier Utilisateur';
     document.getElementById('inpUserName').value = user.username;
     document.getElementById('inpUserPass').value = user.password || '';
     document.getElementById('selUserRole').value = user.role;
@@ -867,20 +1101,20 @@ async function saveUser() {
         active: document.getElementById('chkActive').checked
     };
     if (!payload.username || !payload.password) {
-        toast('⚠️ Username and password required', 'warn'); return;
+        toast('⚠️ Nom d\'utilisateur et mot de passe requis', 'warn'); return;
     }
     let res;
     if (id) { payload.id = id; res = await apiCall('updateUser', payload); }
     else res = await apiCall('addUser', payload);
     if (res.success) {
-        toast('✅ User saved', 'success');
+        toast('✅ Utilisateur enregistré', 'success');
         modal.classList.remove('open');
         refreshUsersTable();
-    } else toast('❌ ' + (res.error || 'Failed'), 'error');
+    } else toast('❌ ' + (res.error || 'Échec'), 'error');
 }
 
 /* =========================================================
-   INITIALIZATION
+   INITIALISATION
    ========================================================= */
 document.addEventListener('DOMContentLoaded', async () => {
     if (!SESSION) return;
@@ -915,9 +1149,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const editId = e.target.dataset.edit;
         const delId  = e.target.dataset.del;
         if (editId) await editMovement(Number(editId));
-        if (delId && confirm('Delete this movement?')) {
+        if (delId && confirm('Supprimer ce mouvement ?')) {
             await apiCall('deleteMovement', { id: Number(delId) });
-            toast('✅ Deleted', 'success');
+            toast('✅ Supprimé', 'success');
             refreshMovements();
         }
     });
@@ -929,9 +1163,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const res = await apiCall('getUsers');
             openUserModal((res.users||[]).find(u => String(u.id) === String(editId)));
         }
-        if (delId && confirm('Delete this user?')) {
+        if (delId && confirm('Supprimer cet utilisateur ?')) {
             await apiCall('deleteUser', { id: Number(delId) });
-            toast('✅ Deleted', 'success');
+            toast('✅ Supprimé', 'success');
             refreshUsersTable();
         }
     });
@@ -969,7 +1203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.getElementById('btnLogout').addEventListener('click', () => {
-        if (confirm('Logout?')) {
+        if (confirm('Se déconnecter ?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
             sessionStorage.removeItem('mycaisse_token');
             window.location.href = 'index.html';
