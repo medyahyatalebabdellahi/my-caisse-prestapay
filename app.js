@@ -1446,3 +1446,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { await refreshManageTables(); }   catch (e) { console.error('refreshManageTables:', e); }
     try { await refreshSettings(); }       catch (e) { console.error('refreshSettings:', e); }
 });
+async function saveOpeningBalance() {
+    try {
+        const raw = document.getElementById('inpOpeningBalance').value;
+        const cleaned = String(raw).replace(/\s/g, '').replace(',', '.');
+        const val = parseFloat(cleaned);
+
+        if (isNaN(val)) { toast('⚠️ Invalid number', 'warn'); return; }
+        if (!confirm(`Confirm ${fmtMoney(val)} as new opening balance?`)) return;
+
+        console.log('💾 Saving opening balance:', val);
+
+        // Immediate visual feedback
+        document.getElementById('statOpening').textContent = fmtMoney(val);
+
+        const res = await apiCall('setSetting', { key: 'opening_balance', value: val });
+        console.log('📥 API response:', res);
+
+        if (res && res.success) {
+            toast('✅ Opening balance updated', 'success');
+            await refreshSettings();
+            await refreshBanner();
+            await refreshMovements();
+        } else {
+            toast('❌ Failed: ' + (res?.error || 'unknown'), 'error');
+            await refreshBanner();
+        }
+    } catch (err) {
+        console.error(err);
+        toast('❌ Error: ' + err.message, 'error');
+    }
+}
+async function refreshBanner() {
+    const [setRes, mvtRes] = await Promise.all([
+        apiCall('getSetting', { key: 'opening_balance' }),
+        apiCall('getMovements')
+    ]);
+
+    const opening  = Number(setRes.value || 0);
+    const mvts     = mvtRes.movements || [];
+
+    const recettes = mvts.reduce((s, m) => s + Number(m.recette || 0), 0);
+    const depenses = mvts.reduce((s, m) => s + Number(m.depense || 0), 0);
+    const frais    = mvts.reduce((s, m) => s + Number(m.frais   || 0), 0);
+    const closing  = opening + recettes - depenses - frais;
+
+    document.getElementById('statOpening').textContent  = fmtMoney(opening);
+    document.getElementById('statRecettes').textContent = fmtMoney(recettes);
+    document.getElementById('statDepenses').textContent = fmtMoney(depenses);
+    document.getElementById('statFrais').textContent    = fmtMoney(frais);
+    document.getElementById('statFinal').textContent    = fmtMoney(closing);
+}
+toast(`✅ Imported: ${imp} | Skipped: ${skip}`, 'success');
+refreshMovements();
+refreshBanner();   // ← THIS updates the top totals
