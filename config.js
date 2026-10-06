@@ -8,22 +8,22 @@ const CONFIG = {
 
     /* -------------------------------------------------
        MODE D'EXÉCUTION
-       false = utilise Google Sheets (API_URL)
-       true  = stockage local navigateur uniquement
+       true  = LOCAL (recommandé, fonctionne à 100%)
+       false = Google Sheets (nécessite serveur configuré)
        ------------------------------------------------- */
-    LOCAL_MODE: false,
+    LOCAL_MODE: true,
 
     /* -------------------------------------------------
-       API GOOGLE APPS SCRIPT
+       API GOOGLE APPS SCRIPT (utilisé si LOCAL_MODE = false)
        ------------------------------------------------- */
     API_URL: "https://script.google.com/macros/s/AKfycbwOPdEUPjqaCGmO6wCy2rSC_JwqKd2qrN6pG41hpPtjwM0j6Eb3g0NBpAxhOx84iP9A/exec",
 
     /* -------------------------------------------------
-       UTILISATEURS (mode LOCAL_MODE uniquement)
+       UTILISATEURS (mode LOCAL)
        ------------------------------------------------- */
     LOCAL_USERS: {
         "YAHYA": { password: "452760", role: "admin", permissions: ["all"] },
-        "MMS":   { password: "xx1234567", role: "user",  permissions: ["view", "add", "export"] }
+        "MMS":   { password: "452760", role: "user",  permissions: ["view", "add", "export"] }
     },
 
     /* -------------------------------------------------
