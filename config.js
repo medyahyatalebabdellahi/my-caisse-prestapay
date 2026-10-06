@@ -9,26 +9,20 @@ const CONFIG = {
     /* ---------------------------------------------------------
        MODE SELECTION
        ---------------------------------------------------------
-       LOCAL_MODE: true  → Works offline (browser storage)
+       LOCAL_MODE: true  → Offline (browser storage)
        LOCAL_MODE: false → Uses Google Apps Script + Sheets
        --------------------------------------------------------- */
-    LOCAL_MODE: true,
+    LOCAL_MODE: false,
 
     /* ---------------------------------------------------------
        SERVER API URL
        ---------------------------------------------------------
-       Only required when LOCAL_MODE = false
-       Paste your Google Apps Script Web App URL here
-       Example: "https://script.google.com/macros/s/XXXXX/exec"
+       Your Google Apps Script Web App URL
        --------------------------------------------------------- */
-    API_URL: "",
+    API_URL: "https://script.google.com/macros/s/AKfycbyQD-vilJjsz6fy8gM_X87tP6wITGWHbB34QDLm5g-QicaqfRHpcfdFN2TgfD84KmuW/exec",
 
     /* ---------------------------------------------------------
-       LOCAL USERS (used only when LOCAL_MODE = true)
-       ---------------------------------------------------------
-       Each user has: password, role, permissions
-       Roles: "admin" or "user"
-       Permissions: view, add, edit, delete, export, manage_users, all
+       LOCAL USERS (fallback when offline)
        --------------------------------------------------------- */
     LOCAL_USERS: {
         "YAHYA": {
