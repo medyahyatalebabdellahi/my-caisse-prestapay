@@ -11,7 +11,7 @@ const CONFIG = {
        LOCAL_MODE: true  → Offline (browser storage)
        LOCAL_MODE: false → Google Apps Script + Google Sheets
        --------------------------------------------------------- */
-    LOCAL_MODE: false,
+    LOCAL_MODE: true,
 
     /* ---------------------------------------------------------
        SERVER API URL
