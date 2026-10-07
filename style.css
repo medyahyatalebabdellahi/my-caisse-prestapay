@@ -393,3 +393,16 @@ table.data tbody tr.depense td:first-child { border-left: 4px solid var(--danger
     .stats-banner { grid-template-columns: 1fr 1fr; padding: 16px; }
     .stat { border-right: none; border-bottom: 1px solid rgba(255,255,255,.15); padding: 10px; }
 }
+/* Money cells — keep on single line */
+.amt-recette,
+.amt-depense,
+.amt-frais,
+.amt-solde {
+    white-space: nowrap;
+    min-width: 90px;
+}
+
+/* Also prevent table cells from wrapping badly */
+table.data td {
+    vertical-align: middle;
+}
