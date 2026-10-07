@@ -311,7 +311,6 @@ async function saveMovement() {
 
 /* ✅ Edit Movement — Toggle: click again on same ✏️ to cancel */
 async function editMovement(id) {
-    // If already editing this movement → cancel edit mode
     if (CURRENT_EDIT_ID === id) {
         clearForm();
         toast('❌ Modification annulée', 'warn');
@@ -322,7 +321,6 @@ async function editMovement(id) {
     const m = (res.movements || []).find(x => String(x.id) === String(id));
     if (!m) return;
 
-    // Reset form BEFORE filling with new values (prevents mixing)
     clearForm();
 
     CURRENT_EDIT_ID = id;
@@ -343,14 +341,13 @@ async function editMovement(id) {
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
 
-    // Switch to orange edit mode
     document.getElementById('formTitle').textContent = '✏️ Modifier le Mouvement';
     document.getElementById('formTitle').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     document.getElementById('formTitle').style.color = '#fff';
     document.getElementById('btnSave').textContent = '💾 Enregistrer les Modifications';
     document.getElementById('btnSave').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast('✏️ Mode Modification activé — Cliquez à nouveau sur ✏️ pour annuler', 'warn');
+    toast('✏️ Mode Modification activé', 'warn');
 }
 
 /* =========================================================
@@ -385,20 +382,6 @@ async function refreshManageTables() {
         opt.value = c.name; opt.textContent = c.name;
         repSel.appendChild(opt);
     });
-
-    // ✅ Fill export category filter (single-select with "All" option)
-    const expSel = document.getElementById('exportCategoryFilter');
-    if (expSel) {
-        const currentVal = expSel.value;
-        expSel.innerHTML = '<option value="">📂 Toutes catégories</option>';
-        cats.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.name;
-            opt.textContent = c.name + ' (' + c.kind + ')';
-            expSel.appendChild(opt);
-        });
-        expSel.value = currentVal;
-    }
 }
 
 async function refreshTypesTable() {
@@ -647,52 +630,61 @@ async function saveClosingAsOpening() {
 }
 
 /* =========================================================
-   EXPORTS
+   EXPORT MODAL — 2 sections (Category / Cash Movement)
    ========================================================= */
-async function exportData(format) {
-    const isoFrom = document.getElementById('filterFrom').value || null;
-    const isoTo   = document.getElementById('filterTo').value || null;
-    const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
-    let movements = res.movements || [];
+function openExportModal() {
+    const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    document.getElementById('expCatFrom').value = firstDay.toISOString().slice(0,10);
+    document.getElementById('expCatTo').value = todayISO();
+    document.getElementById('expMvtFrom').value = firstDay.toISOString().slice(0,10);
+    document.getElementById('expMvtTo').value = todayISO();
 
-    // ✅ Filter by single selected category (empty = all)
-    const expCatSel = document.getElementById('exportCategoryFilter');
-    const selectedCat = expCatSel ? expCatSel.value : '';
-    if (selectedCat) {
-        movements = movements.filter(m => String(m.category).toUpperCase() === selectedCat.toUpperCase());
-    }
+    apiCall('getCategories').then(res => {
+        const cats = res.categories || [];
 
-    // Filter by movement type
-    const typeFilter = document.getElementById('exportTypeFilter')?.value || 'all';
-    if (typeFilter === 'Recette') movements = movements.filter(m => Number(m.recette) > 0);
-    if (typeFilter === 'Dépense') movements = movements.filter(m => Number(m.depense) > 0);
+        const sel = document.getElementById('expCatList');
+        sel.innerHTML = '';
+        cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name + ' (' + c.kind + ')';
+            sel.appendChild(opt);
+        });
 
+        const sel2 = document.getElementById('expMvtCat');
+        sel2.innerHTML = '<option value="">📂 Toutes catégories</option>';
+        cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name;
+            sel2.appendChild(opt);
+        });
+    });
+
+    document.getElementById('exportModal').classList.add('open');
+}
+
+async function exportFiltered(movements, format, options) {
     if (!movements.length) {
-        toast('⚠️ Aucun mouvement à exporter avec ces filtres', 'warn');
+        toast('⚠️ Aucun mouvement à exporter', 'warn');
         return;
     }
-
-    let opening = getOpeningBalance();
-    if (isoFrom) {
-        const allRes = await apiCall('getMovements');
-        (allRes.movements || []).filter(m => m.date < isoFrom)
-            .forEach(m => opening += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0));
-    }
+    const opening = getOpeningBalance();
     const tRec = movements.reduce((s,m) => s + Number(m.recette||0), 0);
     const tDep = movements.reduce((s,m) => s + Number(m.depense||0), 0);
     const tFrais = movements.reduce((s,m) => s + Number(m.frais||0), 0);
     const finalBal = opening + tRec - tDep - tFrais;
     const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-    const fromFR = isoFrom ? isoToFR(isoFrom) : 'N/A';
-    const toFR = isoTo ? isoToFR(isoTo) : 'N/A';
     const now = new Date();
     const nowFR = String(now.getDate()).padStart(2,'0') + '/' +
                   String(now.getMonth()+1).padStart(2,'0') + '/' +
                   now.getFullYear() + ' à ' +
                   String(now.getHours()).padStart(2,'0') + ':' +
                   String(now.getMinutes()).padStart(2,'0');
+    const title = options.title || 'FICHE DES DÉPENSES PRESTAPAY';
+    const fromFR = options.from || 'N/A';
+    const toFR = options.to || 'N/A';
 
-    // ============ PDF ============
     if (format === 'pdf') {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -703,7 +695,7 @@ async function exportData(format) {
         doc.setFontSize(20); doc.setFont(undefined,'bold');
         doc.text('MY CAISSE PRESTAPAY', 148, 13, { align:'center' });
         doc.setFontSize(13);
-        doc.text('FICHE DES DÉPENSES PRESTAPAY', 148, 22, { align:'center' });
+        doc.text(title, 148, 22, { align:'center' });
         doc.setFontSize(9); doc.setFont(undefined,'normal');
         doc.text(`Période : ${fromFR} → ${toFR}`, 148, 28, { align:'center' });
 
@@ -722,16 +714,12 @@ async function exportData(format) {
             body: movements.map(m => {
                 running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
                 const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
-                return [
-                    fmtDate(m.date), m.transaction_no||'', m.type || '—',
-                    m.category || '', typeMvt, m.description||'',
-                    m.recette?fmtMoney(m.recette):'', m.depense?fmtMoney(m.depense):'',
-                    m.frais?fmtMoney(m.frais):'', fmtMoney(running)
-                ];
+                return [fmtDate(m.date), m.transaction_no||'', m.type || '—', m.category || '',
+                        typeMvt, m.description||'', m.recette?fmtMoney(m.recette):'',
+                        m.depense?fmtMoney(m.depense):'', m.frais?fmtMoney(m.frais):'', fmtMoney(running)];
             }),
             styles: { fontSize: 7, cellPadding: 2 },
             headStyles: { fillColor: [124,58,237], textColor: 255, fontStyle:'bold' },
-            bodyStyles: { textColor: [31,27,46] },
             alternateRowStyles: { fillColor: [245,243,255] },
             columnStyles: {
                 6: { halign:'right', textColor:[5,150,105] },
@@ -750,34 +738,26 @@ async function exportData(format) {
         doc.text(`Généré le : ${nowFR}`, 15, finalY + 6);
         doc.text('My Caisse Prestapay — Version 2.4.0', 297 - 15, finalY + 6, { align:'right' });
 
-        doc.save(`Fiche_Depenses_${stamp}.pdf`);
+        doc.save(`${title.replace(/\s+/g,'_')}_${stamp}.pdf`);
         toast('✅ PDF exporté', 'success');
-
-    // ============ WORD ============
-    } else if (format === 'word') {
+    }
+    else if (format === 'word') {
         let rows = '', running = opening;
         movements.forEach(m => {
             running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
             const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
             rows += `<tr>
-                <td>${fmtDate(m.date)}</td>
-                <td>${m.transaction_no||''}</td>
-                <td>${typeMvt}</td>
-                <td>${m.category||''}</td>
-                <td>${m.type||'—'}</td>
-                <td>${m.description||''}</td>
+                <td>${fmtDate(m.date)}</td><td>${m.transaction_no||''}</td>
+                <td>${typeMvt}</td><td>${m.category||''}</td>
+                <td>${m.type||'—'}</td><td>${m.description||''}</td>
                 <td style="text-align:right;color:#059669">${m.recette?fmtMoney(m.recette):''}</td>
                 <td style="text-align:right;color:#DC2626">${m.depense?fmtMoney(m.depense):''}</td>
                 <td style="text-align:right;color:#D97706">${m.frais?fmtMoney(m.frais):''}</td>
                 <td style="text-align:right;font-weight:bold">${fmtMoney(running)}</td>
             </tr>`;
         });
-
-        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-                            xmlns:w="urn:schemas-microsoft-com:office:word"
-                            xmlns="http://www.w3.org/TR/REC-html40">
-        <head><meta charset="utf-8">
-        <style>
+        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8"><style>
             body { font-family: Arial; margin: 20px; }
             .header { background:#7C3AED; color:#fff; padding:15px; text-align:center; }
             .header h1 { margin:0; font-size:22px; }
@@ -792,13 +772,11 @@ async function exportData(format) {
             .footer { margin-top:30px; padding-top:15px; border-top:2px solid #7C3AED; font-size:11px; }
             .footer strong { color:#7C3AED; }
         </style></head><body>
-
         <div class="header">
             <h1>MY CAISSE PRESTAPAY</h1>
-            <h2>FICHE DES DÉPENSES PRESTAPAY</h2>
+            <h2>${title}</h2>
             <p>Période : ${fromFR} → ${toFR}</p>
         </div>
-
         <div class="summary">
             <span>Solde début : ${fmtMoney(opening)}</span>
             <span>Recettes : ${fmtMoney(tRec)}</span>
@@ -806,35 +784,21 @@ async function exportData(format) {
             <span>Frais : ${fmtMoney(tFrais)}</span>
             <span style="color:#7C3AED">Solde fin : ${fmtMoney(finalBal)}</span>
         </div>
-
-        <table>
-            <thead><tr>
-                <th>Date</th><th>N°</th><th>Type</th><th>Catégorie</th>
-                <th>Type mvt</th><th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-        </table>
-
+        <table><thead><tr>
+            <th>Date</th><th>N°</th><th>Type</th><th>Catégorie</th><th>Type mvt</th>
+            <th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th>
+        </tr></thead><tbody>${rows}</tbody></table>
         <div class="footer">
             <p><strong>Préparé par :</strong> YAHYA TALEB ABDELLAHI</p>
-            <p style="color:#6B7280;font-size:10px">
-                Généré le : ${nowFR} — My Caisse Prestapay v2.4.0
-            </p>
+            <p style="color:#6B7280;font-size:10px">Généré le : ${nowFR} — My Caisse Prestapay v2.4.0</p>
         </div>
-
         </body></html>`;
-
-        downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }),
-                     `Fiche_Depenses_${stamp}.doc`);
+        downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }), `${title.replace(/\s+/g,'_')}_${stamp}.doc`);
         toast('✅ Word exporté', 'success');
-
-    // ============ EXCEL ============
-    } else if (format === 'excel') {
+    }
+    else if (format === 'excel') {
         const data = [
-            ['MY CAISSE PRESTAPAY'],
-            ['FICHE DES DÉPENSES PRESTAPAY'],
-            ['Période', `${fromFR} → ${toFR}`],
-            [],
+            ['MY CAISSE PRESTAPAY'], [title], ['Période', `${fromFR} → ${toFR}`], [],
             ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
             [],
             ['Date','N°','Type','Catégorie','Type mvt','Description','Recettes','Dépenses','Frais','Solde']
@@ -851,25 +815,42 @@ async function exportData(format) {
         data.push(['', '', '', '', '', 'Généré le : ' + nowFR]);
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Fiche Depenses');
-        XLSX.writeFile(wb, `Fiche_Depenses_${stamp}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Export');
+        XLSX.writeFile(wb, `${title.replace(/\s+/g,'_')}_${stamp}.xlsx`);
         toast('✅ Excel exporté', 'success');
-
-    // ============ CSV ============
-    } else if (format === 'csv') {
-        let csv = 'Date,N°,Type,Catégorie,Type mvt,Description,Recettes,Dépenses,Frais,Solde\n';
-        let running = opening;
-        movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
-            const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
-            csv += [fmtDate(m.date), m.transaction_no||'', m.type||'—', m.category||'', typeMvt,
-                    m.description||'', m.recette||0, m.depense||0, m.frais||0, running]
-                    .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
-        });
-        csv += `\n"Préparé par : YAHYA TALEB ABDELLAHI"\n"Généré le : ${nowFR}"\n`;
-        downloadBlob(csv, `Fiche_Depenses_${stamp}.csv`, 'text/csv;charset=utf-8');
-        toast('✅ CSV exporté', 'success');
     }
+}
+
+/* =========================================================
+   MISSION TRACKING
+   ========================================================= */
+async function refreshMissionTable() {
+    const tbody = document.getElementById('missionTbody');
+    if (!tbody) return;
+    const res = await apiCall('getMovements');
+    const all = res.movements || [];
+    const missions = all.filter(m => String(m.category || '').toUpperCase().includes('MISSION'));
+
+    tbody.innerHTML = '';
+    if (!missions.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--gray)">Aucun mouvement de mission</td></tr>';
+    } else {
+        missions.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.className = m.recette > 0 ? 'recette' : 'depense';
+            tr.innerHTML = `
+                <td>${fmtDate(m.date)}</td>
+                <td>${m.transaction_no || ''}</td>
+                <td>${m.category || ''}</td>
+                <td>${m.type || ''}</td>
+                <td>${m.description || ''}</td>
+                <td class="amt-recette">${m.recette ? fmtMoney(m.recette) : ''}</td>
+                <td class="amt-depense">${m.depense ? fmtMoney(m.depense) : ''}</td>
+                <td class="amt-frais">${m.frais ? fmtMoney(m.frais) : ''}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+    document.getElementById('missionCount').textContent = missions.length + ' ligne(s)';
 }
 
 function downloadBlob(data, filename, mime) {
@@ -1315,7 +1296,9 @@ async function exportBackupJSON() {
    BIND ALL EVENTS
    ========================================================= */
 function bindAllEvents() {
+    // Tabs
     document.querySelectorAll('.tab').forEach(tab => {
+        if (!tab.dataset.tab) return; // skip export internal tabs
         tab.addEventListener('click', () => {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1323,6 +1306,7 @@ function bindAllEvents() {
             const panel = document.getElementById(tab.dataset.tab);
             if (panel) panel.classList.add('active');
             if (tab.dataset.tab === 'tabSettings') refreshSettings();
+            if (tab.dataset.tab === 'tabMission') refreshMissionTable();
         });
     });
 
@@ -1337,8 +1321,6 @@ function bindAllEvents() {
         document.getElementById('filterTo').value = todayISO();
         refreshMovements();
     });
-
-    document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('click', () => exportData(b.dataset.export)));
 
     document.getElementById('fileInput')?.addEventListener('change', e => {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
@@ -1394,6 +1376,64 @@ function bindAllEvents() {
     document.getElementById('btnRecalcBalance')?.addEventListener('click', recalcBalanceGlobal);
     document.getElementById('btnExportBackup')?.addEventListener('click', exportBackupJSON);
 
+    // ✅ Export modal
+    document.getElementById('btnOpenExportModal')?.addEventListener('click', openExportModal);
+    document.getElementById('exportModalClose')?.addEventListener('click', () =>
+        document.getElementById('exportModal').classList.remove('open'));
+
+    // ✅ Export internal tabs
+    document.querySelectorAll('[data-extab]').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('[data-extab]').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('#extabCat, #extabMvt').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            const panel = document.getElementById(tab.dataset.extab);
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    // ✅ Export by category
+    document.querySelectorAll('[data-excat]').forEach(b => b.addEventListener('click', async () => {
+        const from = document.getElementById('expCatFrom').value || null;
+        const to = document.getElementById('expCatTo').value || null;
+        const selected = Array.from(document.getElementById('expCatList').selectedOptions).map(o => o.value);
+        if (!selected.length) { toast('⚠️ Sélectionnez au moins une catégorie', 'warn'); return; }
+
+        const res = await apiCall('getMovements', { from, to });
+        let movements = (res.movements || []).filter(m =>
+            selected.includes(String(m.category).toUpperCase())
+        );
+        if (!movements.length) { toast('⚠️ Aucun mouvement trouvé', 'warn'); return; }
+        await exportFiltered(movements, b.dataset.excat, {
+            title: 'FICHE PAR CATÉGORIE',
+            from: from ? isoToFR(from) : 'N/A',
+            to: to ? isoToFR(to) : 'N/A'
+        });
+        document.getElementById('exportModal').classList.remove('open');
+    }));
+
+    // ✅ Export by movement
+    document.querySelectorAll('[data-exmvt]').forEach(b => b.addEventListener('click', async () => {
+        const from = document.getElementById('expMvtFrom').value || null;
+        const to = document.getElementById('expMvtTo').value || null;
+        const type = document.getElementById('expMvtType').value;
+        const cat = document.getElementById('expMvtCat').value;
+
+        const res = await apiCall('getMovements', { from, to });
+        let movements = res.movements || [];
+        if (type === 'Recette') movements = movements.filter(m => Number(m.recette) > 0);
+        if (type === 'Dépense') movements = movements.filter(m => Number(m.depense) > 0);
+        if (cat) movements = movements.filter(m => String(m.category).toUpperCase() === cat.toUpperCase());
+        if (!movements.length) { toast('⚠️ Aucun mouvement trouvé', 'warn'); return; }
+        await exportFiltered(movements, b.dataset.exmvt, {
+            title: 'MOUVEMENT DE CAISSE',
+            from: from ? isoToFR(from) : 'N/A',
+            to: to ? isoToFR(to) : 'N/A'
+        });
+        document.getElementById('exportModal').classList.remove('open');
+    }));
+
+    // Logout
     document.getElementById('btnLogout')?.addEventListener('click', () => {
         if (confirm('Se déconnecter ?')) {
             localStorage.removeItem(CONFIG.SESSION_KEY);
@@ -1423,4 +1463,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     try { await refreshUsersTable(); } catch (e) { console.error('refreshUsersTable:', e); }
     try { await refreshManageTables(); } catch (e) { console.error('refreshManageTables:', e); }
     try { await refreshSettings(); } catch (e) { console.error('refreshSettings:', e); }
+    try { await refreshMissionTable(); } catch (e) { console.error('refreshMissionTable:', e); }
 });
