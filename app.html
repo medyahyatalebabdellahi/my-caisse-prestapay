@@ -3,18 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Caisse Prestapay — Dashboard</title>
+<title>My Caisse Prestapay — Tableau de bord</title>
 <link rel="stylesheet" href="style.css">
 <script src="config.js"></script>
-
-<!-- Excel Export/Import -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
-<!-- PDF Export -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-
-<!-- PDF Import (jsdelivr - faster) -->
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
@@ -27,65 +21,65 @@
     <div class="user-info">
         <div class="avatar" id="userAvatar">U</div>
         <div style="text-align:right;line-height:1.2">
-            <div style="font-weight:700" id="userName">User</div>
+            <div style="font-weight:700" id="userName">Utilisateur</div>
             <div style="font-size:11px;opacity:.8" id="userRole">—</div>
         </div>
-        <button class="btn-ghost" id="btnLogout">🚪 Logout</button>
+        <button class="btn-ghost" id="btnLogout">🚪 Déconnexion</button>
     </div>
 </header>
 
 <div class="stats-banner">
-    <div class="stat"><div class="label">OPENING BALANCE</div>
+    <div class="stat"><div class="label">SOLDE DÉBUT</div>
         <div class="value" id="statOpening">0 MRU</div></div>
-    <div class="stat recette"><div class="label">TOTAL INCOME</div>
+    <div class="stat recette"><div class="label">TOTAL RECETTES</div>
         <div class="value" id="statRecettes">0 MRU</div></div>
-    <div class="stat depense"><div class="label">TOTAL EXPENSES</div>
+    <div class="stat depense"><div class="label">TOTAL DÉPENSES</div>
         <div class="value" id="statDepenses">0 MRU</div></div>
-    <div class="stat frais"><div class="label">TOTAL FEES</div>
+    <div class="stat frais"><div class="label">TOTAL FRAIS</div>
         <div class="value" id="statFrais">0 MRU</div></div>
-    <div class="stat final"><div class="label">CLOSING BALANCE</div>
+    <div class="stat final"><div class="label">SOLDE FIN</div>
         <div class="value" id="statFinal">0 MRU</div></div>
 </div>
 
 <div class="app-container">
     <aside>
         <div class="card" data-add-only>
-            <div class="card-header" id="formTitle">New Movement</div>
+            <div class="card-header" id="formTitle">Nouveau Mouvement</div>
             <div class="card-body">
                 <div class="radio-group" id="opTypeGroup">
-                    <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Expense</span></label>
-                    <label><input type="radio" name="opType" value="Recette"><span>💰 Income</span></label>
+                    <label><input type="radio" name="opType" value="Dépense" checked><span>💸 Dépense</span></label>
+                    <label><input type="radio" name="opType" value="Recette"><span>💰 Recette</span></label>
                 </div>
                 <div class="form-group">
                     <label>📅 DATE</label>
                     <input type="date" id="inpDate" class="form-control date-input">
                 </div>
-                <div class="form-group"><label>TRANSACTION #</label>
+                <div class="form-group"><label>N° TRANSACTION</label>
                     <input type="text" id="inpTransaction" class="form-control" placeholder="TR..."></div>
-                <div class="form-group"><label>CATEGORY</label>
+                <div class="form-group"><label>CATÉGORIE</label>
                     <select id="selCategory" class="form-control"></select></div>
                 <div class="form-group"><label>TYPE</label>
                     <select id="selType" class="form-control"></select></div>
                 <div class="form-group"><label>DESCRIPTION</label>
-                    <input type="text" id="inpDescription" class="form-control" placeholder="Label..."></div>
-                <div class="form-group"><label>AMOUNT (MRU)</label>
+                    <input type="text" id="inpDescription" class="form-control" placeholder="Libellé..."></div>
+                <div class="form-group"><label>MONTANT (MRU)</label>
                     <input type="number" id="inpAmount" class="form-control" placeholder="0.00" step="0.01"></div>
-                <div class="form-group"><label>FEES (MRU)</label>
+                <div class="form-group"><label>FRAIS (MRU)</label>
                     <input type="number" id="inpFrais" class="form-control" placeholder="0.00" step="0.01" value="0"></div>
                 <div style="display:flex;gap:8px;margin-top:10px">
-                    <button class="btn btn-violet btn-block" id="btnSave">➕ Add</button>
-                    <button class="btn btn-gray" id="btnClear">Clear</button>
+                    <button class="btn btn-violet btn-block" id="btnSave">➕ Ajouter</button>
+                    <button class="btn btn-gray" id="btnClear">Effacer</button>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <div class="card-header">📥 Import File</div>
+            <div class="card-header">📥 Importer un fichier</div>
             <div class="card-body">
                 <label class="upload-zone" for="fileInput">
                     <div style="font-size:28px">📄</div>
                     <div style="font-weight:700;color:var(--violet-dark);margin-top:6px">
-                        Click or drop a file
+                        Cliquez ou déposez un fichier
                     </div>
                     <div style="font-size:11px;color:var(--gray);margin-top:4px">
                         CSV, JSON, Excel, PDF
@@ -98,25 +92,38 @@
 
     <main>
         <div class="tabs">
-            <button class="tab active" data-tab="tabMovements">📊 Movements</button>
-            <button class="tab" data-tab="tabReport">📈 Monthly Report</button>
-            <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Categories & Types</button>
-            <button class="tab" data-tab="tabUsers" data-admin-only>👥 Users</button>
-            <button class="tab" data-tab="tabSettings" data-admin-only>⚙️ Settings</button>
+            <button class="tab active" data-tab="tabMovements">📊 Mouvements</button>
+            <button class="tab" data-tab="tabReport">📈 Rapport Mensuel</button>
+            <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Catégories & Types</button>
+            <button class="tab" data-tab="tabUsers" data-admin-only>👥 Utilisateurs</button>
+            <button class="tab" data-tab="tabSettings" data-admin-only>⚙️ Paramètres</button>
         </div>
 
-        <!-- MOVEMENTS -->
+        <!-- MOUVEMENTS -->
         <div class="tab-panel active" id="tabMovements">
             <div class="table-wrap">
                 <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark)">📅 From</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">📅 Du</span>
                     <input type="date" id="filterFrom" class="form-control date-input" style="width:150px">
-                    <span style="font-weight:700;color:var(--violet-dark)">To</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">Au</span>
                     <input type="date" id="filterTo" class="form-control date-input" style="width:150px">
-                    <button class="btn btn-violet" id="btnFilter">🔍 Filter</button>
+                    <button class="btn btn-violet" id="btnFilter">🔍 Filtrer</button>
                     <button class="btn btn-gray" id="btnResetFilter">↺ Reset</button>
                     <input type="text" id="searchInput" class="form-control"
-                           style="flex:1;min-width:150px" placeholder="🔎 Search...">
+                           style="flex:1;min-width:150px" placeholder="🔎 Rechercher...">
+                </div>
+                <div class="table-toolbar" style="background:#F5F3FF;border-top:1px solid var(--violet-light)">
+                    <span style="font-weight:700;color:var(--violet-dark);font-size:12px">📤 Exporter :</span>
+                    <select id="exportCategoryFilter" class="form-control" multiple
+                            style="width:180px;height:38px;font-size:12px;padding:4px"
+                            title="Ctrl+clic pour plusieurs catégories">
+                    </select>
+                    <select id="exportTypeFilter" class="form-control"
+                            style="width:140px;height:38px;font-size:12px">
+                        <option value="all">Tous types</option>
+                        <option value="Recette">Recettes</option>
+                        <option value="Dépense">Dépenses</option>
+                    </select>
                     <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
                         <button class="btn btn-success" data-export="excel">📗 Excel</button>
                         <button class="btn btn-blue"    data-export="word">📘 Word</button>
@@ -129,14 +136,14 @@
                         <thead>
                             <tr>
                                 <th>DATE</th>
-                                <th>TRANSACTION #</th>
-                                <th>CATEGORY</th>
+                                <th>N° TRANSACTION</th>
+                                <th>CATÉGORIE</th>
                                 <th>TYPE</th>
                                 <th>DESCRIPTION</th>
-                                <th style="text-align:right">INCOME</th>
-                                <th style="text-align:right">EXPENSES</th>
-                                <th style="text-align:right">FEES</th>
-                                <th style="text-align:right">BALANCE</th>
+                                <th style="text-align:right">RECETTES</th>
+                                <th style="text-align:right">DÉPENSES</th>
+                                <th style="text-align:right">FRAIS</th>
+                                <th style="text-align:right">SOLDE</th>
                                 <th>ACTIONS</th>
                             </tr>
                         </thead>
@@ -145,50 +152,50 @@
                 </div>
                 <div style="padding:10px 16px;background:var(--violet-light);
                             font-size:12px;color:var(--violet-dark);font-weight:600"
-                     id="movCount">0 row(s)</div>
+                     id="movCount">0 ligne(s)</div>
             </div>
         </div>
 
-        <!-- MONTHLY REPORT -->
+        <!-- RAPPORT MENSUEL -->
         <div class="tab-panel" id="tabReport">
             <div class="card">
-                <div class="card-header">📈 Monthly Report — Prestapay Operating Expenses</div>
+                <div class="card-header">📈 Rapport Mensuel — Dépense Exploitation Prestapay</div>
                 <div class="card-body">
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-                        <div class="form-group"><label>MONTH</label>
+                        <div class="form-group"><label>MOIS</label>
                             <input type="month" id="reportMonth" class="form-control"></div>
-                        <div class="form-group"><label>CATEGORIES (multi-select)</label>
+                        <div class="form-group"><label>CATÉGORIES (multi-sélection)</label>
                             <select id="reportCategories" class="form-control" multiple
                                     style="height:auto;min-height:42px;padding:6px"></select></div>
                     </div>
                     <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap">
-                        <button class="btn btn-violet" id="btnGenerateReport">📊 Generate</button>
+                        <button class="btn btn-violet" id="btnGenerateReport">📊 Générer</button>
                         <button class="btn btn-success" id="btnReportExcel">📗 Excel</button>
                         <button class="btn btn-danger"  id="btnReportPDF">📕 PDF</button>
-                        <button class="btn btn-warning" id="btnSaveClosing">💾 Save Closing Balance</button>
+                        <button class="btn btn-warning" id="btnSaveClosing">💾 Enregistrer Solde Fin</button>
                     </div>
                     <div id="reportOutput"></div>
                 </div>
             </div>
         </div>
 
-        <!-- CATEGORIES & TYPES -->
+        <!-- CATÉGORIES & TYPES -->
         <div class="tab-panel" id="tabManage">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
                 <div class="card">
-                    <div class="card-header">🗂️ Categories</div>
+                    <div class="card-header">🗂️ Catégories</div>
                     <div class="card-body">
-                        <div class="form-group"><label>CATEGORY NAME</label>
-                            <input type="text" id="newCatName" class="form-control" placeholder="EX: SALARIES"></div>
-                        <div class="form-group"><label>CATEGORY KIND</label>
+                        <div class="form-group"><label>NOM DE LA CATÉGORIE</label>
+                            <input type="text" id="newCatName" class="form-control" placeholder="EX: SALAIRES"></div>
+                        <div class="form-group"><label>TYPE DE CATÉGORIE</label>
                             <select id="newCatKind" class="form-control">
-                                <option value="Dépenses">Expenses</option>
-                                <option value="Recettes">Income</option>
+                                <option value="Dépenses">Dépenses</option>
+                                <option value="Recettes">Recettes</option>
                             </select></div>
-                        <button class="btn btn-violet btn-block" id="btnAddCategory">➕ Add Category</button>
+                        <button class="btn btn-violet btn-block" id="btnAddCategory">➕ Ajouter Catégorie</button>
                         <div style="margin-top:16px;max-height:400px;overflow-y:auto">
                             <table class="data" style="font-size:12px">
-                                <thead><tr><th>NAME</th><th>KIND</th><th>ACTIONS</th></tr></thead>
+                                <thead><tr><th>NOM</th><th>TYPE</th><th>ACTIONS</th></tr></thead>
                                 <tbody id="catTbody"></tbody>
                             </table>
                         </div>
@@ -197,14 +204,14 @@
                 <div class="card">
                     <div class="card-header">🏷️ Types</div>
                     <div class="card-body">
-                        <div class="form-group"><label>PARENT CATEGORY</label>
+                        <div class="form-group"><label>CATÉGORIE PARENTE</label>
                             <select id="typeParentCat" class="form-control"></select></div>
-                        <div class="form-group"><label>TYPE NAME</label>
-                            <input type="text" id="newTypeName" class="form-control" placeholder="EX: SALARY"></div>
-                        <button class="btn btn-violet btn-block" id="btnAddType">➕ Add Type</button>
+                        <div class="form-group"><label>NOM DU TYPE</label>
+                            <input type="text" id="newTypeName" class="form-control" placeholder="EX: SALAIRE"></div>
+                        <button class="btn btn-violet btn-block" id="btnAddType">➕ Ajouter Type</button>
                         <div style="margin-top:16px;max-height:400px;overflow-y:auto">
                             <table class="data" style="font-size:12px">
-                                <thead><tr><th>NAME</th><th>CATEGORY</th><th>ACTIONS</th></tr></thead>
+                                <thead><tr><th>NOM</th><th>CATÉGORIE</th><th>ACTIONS</th></tr></thead>
                                 <tbody id="typeTbody"></tbody>
                             </table>
                         </div>
@@ -213,82 +220,81 @@
             </div>
         </div>
 
-        <!-- USERS -->
+        <!-- UTILISATEURS -->
         <div class="tab-panel" id="tabUsers">
             <div class="table-wrap">
                 <div class="table-toolbar">
-                    <span style="font-weight:700;color:var(--violet-dark)">👥 User Management</span>
+                    <span style="font-weight:700;color:var(--violet-dark)">👥 Gestion des Utilisateurs</span>
                     <button class="btn btn-violet" id="btnAddUser"
-                            style="margin-left:auto">➕ New User</button>
+                            style="margin-left:auto">➕ Nouvel Utilisateur</button>
                 </div>
                 <table class="data">
                     <thead><tr>
-                        <th>ID</th><th>USERNAME</th><th>ROLE</th>
-                        <th>PERMISSIONS</th><th>STATUS</th><th>ACTIONS</th>
+                        <th>ID</th><th>NOM D'UTILISATEUR</th><th>RÔLE</th>
+                        <th>PERMISSIONS</th><th>STATUT</th><th>ACTIONS</th>
                     </tr></thead>
                     <tbody id="usersTbody"></tbody>
                 </table>
             </div>
         </div>
 
-        <!-- SETTINGS -->
+        <!-- PARAMÈTRES -->
         <div class="tab-panel" id="tabSettings">
             <div class="card">
-                <div class="card-header">⚙️ General Settings (Admin only)</div>
+                <div class="card-header">⚙️ Paramètres Généraux (Admin uniquement)</div>
                 <div class="card-body">
-
                     <div style="background:var(--violet-light);padding:18px;border-radius:12px;margin-bottom:18px">
                         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
                             <div>
                                 <div style="font-weight:700;color:var(--violet-dark);font-size:15px">
-                                    💰 OPENING BALANCE (Carry from previous period)
+                                    💰 SOLDE DÉBUT (Report de la période précédente)
                                 </div>
                                 <div style="font-size:12px;color:var(--gray);margin-top:4px">
-                                    Used as starting point for balance calculation
+                                    Ce montant est utilisé comme point de départ pour le calcul du solde
                                 </div>
                             </div>
                             <div style="font-size:24px;font-weight:800;color:var(--violet-dark)" id="currentOpeningBalance">
-                                0.00 MRU
+                                0,00 MRU
                             </div>
                         </div>
                         <div style="display:flex;gap:8px;margin-top:12px">
-                            <input type="number" id="inpOpeningBalance" class="form-control"
-                                   placeholder="0.00" step="0.01" style="flex:1">
-                            <button class="btn btn-violet" id="btnSaveOpening">💾 Save</button>
+                            <input type="text" id="inpOpeningBalance" class="form-control"
+                                   placeholder="0.00" inputmode="decimal" style="flex:1">
+                            <button class="btn btn-violet" id="btnSaveOpening">💾 Enregistrer</button>
                         </div>
                         <div style="font-size:11px;color:var(--warning);margin-top:8px">
-                            ⚠️ Changing this value affects the closing balance of all months
+                            ⚠️ Modifier cette valeur affecte le calcul du solde final
                         </div>
                     </div>
 
                     <div style="background:var(--gray-light);padding:18px;border-radius:12px;margin-bottom:18px">
                         <div style="font-weight:700;color:var(--blue-dark);font-size:14px;margin-bottom:10px">
-                            ℹ️ SYSTEM INFORMATION
+                            ℹ️ INFORMATIONS SYSTÈME
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
-                            <div><span style="color:var(--gray)">App:</span> <strong id="infoAppName">—</strong></div>
-                            <div><span style="color:var(--gray)">Version:</span> <strong id="infoVersion">—</strong></div>
-                            <div><span style="color:var(--gray)">Mode:</span> <strong id="infoMode">—</strong></div>
-                            <div><span style="color:var(--gray)">User:</span> <strong id="infoUser">—</strong></div>
+                            <div><span style="color:var(--gray)">Application :</span> <strong id="infoAppName">—</strong></div>
+                            <div><span style="color:var(--gray)">Version :</span> <strong id="infoVersion">—</strong></div>
+                            <div><span style="color:var(--gray)">Mode :</span> <strong id="infoMode">—</strong></div>
+                            <div><span style="color:var(--gray)">Utilisateur :</span> <strong id="infoUser">—</strong></div>
                         </div>
                     </div>
 
                     <div style="background:#FEF2F2;border:2px solid var(--danger);padding:18px;border-radius:12px">
                         <div style="font-weight:700;color:var(--danger);font-size:15px;margin-bottom:10px">
-                            ⚠️ DANGER ZONE
+                            ⚠️ ZONE DANGEREUSE
                         </div>
                         <div style="font-size:13px;color:#991B1B;margin-bottom:14px">
-                            These actions are <strong>irreversible</strong>. Use with caution.
+                            Ces actions sont <strong>irréversibles</strong>. Utilisez-les avec précaution.
                         </div>
                         <div style="display:flex;gap:10px;flex-wrap:wrap">
                             <button class="btn btn-warning" id="btnRecalcBalance">
-                                🔄 Recalculate Global Balance
+                                🔄 Recalculer Solde Global
                             </button>
                             <button class="btn btn-danger" id="btnDeleteAllMvt">
-                                🗑️ DELETE ALL MOVEMENTS
+                                🗑️ SUPPRIMER TOUS LES MOUVEMENTS
                             </button>
                             <button class="btn btn-gray" id="btnExportBackup">
-                                💾 Export JSON Backup
+                                💾 Exporter Sauvegarde JSON
                             </button>
                         </div>
                     </div>
@@ -298,40 +304,40 @@
     </main>
 </div>
 
-<!-- USER MODAL -->
+<!-- MODAL UTILISATEUR -->
 <div class="modal-overlay" id="userModal">
     <div class="modal">
         <div class="modal-header">
-            <h3 id="userModalTitle">New User</h3>
+            <h3 id="userModalTitle">Nouvel Utilisateur</h3>
             <button class="modal-close" id="userModalClose">✕</button>
         </div>
         <div class="modal-body">
-            <div class="form-group"><label>USERNAME</label>
+            <div class="form-group"><label>NOM D'UTILISATEUR</label>
                 <input type="text" id="inpUserName" class="form-control"></div>
-            <div class="form-group"><label>PASSWORD</label>
+            <div class="form-group"><label>MOT DE PASSE</label>
                 <input type="text" id="inpUserPass" class="form-control"></div>
-            <div class="form-group"><label>ROLE</label>
+            <div class="form-group"><label>RÔLE</label>
                 <select id="selUserRole" class="form-control">
-                    <option value="user">User</option>
-                    <option value="admin">Administrator</option>
+                    <option value="user">Utilisateur</option>
+                    <option value="admin">Administrateur</option>
                 </select></div>
             <div class="form-group"><label>PERMISSIONS</label>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">
-                    <label><input type="checkbox" class="perm-check" value="view"> View</label>
-                    <label><input type="checkbox" class="perm-check" value="add"> Add</label>
-                    <label><input type="checkbox" class="perm-check" value="edit"> Edit</label>
-                    <label><input type="checkbox" class="perm-check" value="delete"> Delete</label>
-                    <label><input type="checkbox" class="perm-check" value="export"> Export</label>
-                    <label><input type="checkbox" class="perm-check" value="manage_users"> Manage Users</label>
+                    <label><input type="checkbox" class="perm-check" value="view"> Voir</label>
+                    <label><input type="checkbox" class="perm-check" value="add"> Ajouter</label>
+                    <label><input type="checkbox" class="perm-check" value="edit"> Modifier</label>
+                    <label><input type="checkbox" class="perm-check" value="delete"> Supprimer</label>
+                    <label><input type="checkbox" class="perm-check" value="export"> Exporter</label>
+                    <label><input type="checkbox" class="perm-check" value="manage_users"> Gérer Utilisateurs</label>
                 </div></div>
             <label style="display:flex;gap:8px;align-items:center;margin-top:10px">
-                <input type="checkbox" id="chkActive" checked> Active Account
+                <input type="checkbox" id="chkActive" checked> Compte Actif
             </label>
         </div>
         <div class="modal-footer">
             <button class="btn btn-gray"
-                    onclick="document.getElementById('userModal').classList.remove('open')">Cancel</button>
-            <button class="btn btn-violet" id="btnSaveUser">💾 Save</button>
+                    onclick="document.getElementById('userModal').classList.remove('open')">Annuler</button>
+            <button class="btn btn-violet" id="btnSaveUser">💾 Enregistrer</button>
         </div>
     </div>
 </div>
