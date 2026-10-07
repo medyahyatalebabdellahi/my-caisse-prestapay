@@ -94,6 +94,7 @@
         <div class="tabs">
             <button class="tab active" data-tab="tabMovements">📊 Mouvements</button>
             <button class="tab" data-tab="tabReport">📈 Rapport Mensuel</button>
+            <button class="tab" data-tab="tabMission">🎯 Suivi Mission</button>
             <button class="tab" data-tab="tabManage" data-admin-only>🗂️ Catégories & Types</button>
             <button class="tab" data-tab="tabUsers" data-admin-only>👥 Utilisateurs</button>
             <button class="tab" data-tab="tabSettings" data-admin-only>⚙️ Paramètres</button>
@@ -111,25 +112,7 @@
                     <button class="btn btn-gray" id="btnResetFilter">↺ Reset</button>
                     <input type="text" id="searchInput" class="form-control"
                            style="flex:1;min-width:150px" placeholder="🔎 Rechercher...">
-                </div>
-                <div class="table-toolbar" style="background:#F5F3FF;border-top:1px solid var(--violet-light)">
-                    <span style="font-weight:700;color:var(--violet-dark);font-size:12px">📤 Exporter :</span>
-                    <select id="exportCategoryFilter" class="form-control"
-                            style="width:200px;height:38px;font-size:12px">
-                        <option value="">📂 Toutes catégories</option>
-                    </select>
-                    <select id="exportTypeFilter" class="form-control"
-                            style="width:140px;height:38px;font-size:12px">
-                        <option value="all">Tous types</option>
-                        <option value="Recette">Recettes</option>
-                        <option value="Dépense">Dépenses</option>
-                    </select>
-                    <span style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="btn btn-success" data-export="excel">📗 Excel</button>
-                        <button class="btn btn-blue"    data-export="word">📘 Word</button>
-                        <button class="btn btn-danger"  data-export="pdf">📕 PDF</button>
-                        <button class="btn btn-gray"    data-export="csv">📄 CSV</button>
-                    </span>
+                    <button class="btn btn-violet" id="btnOpenExportModal" style="margin-left:8px">📤 Exporter</button>
                 </div>
                 <div class="scroll-area">
                     <table class="data">
@@ -176,6 +159,38 @@
                     </div>
                     <div id="reportOutput"></div>
                 </div>
+            </div>
+        </div>
+
+        <!-- SUIVI MISSION -->
+        <div class="tab-panel" id="tabMission">
+            <div class="table-wrap">
+                <div class="table-toolbar">
+                    <span style="font-weight:700;color:var(--violet-dark)">🎯 Suivi des Missions</span>
+                    <span style="margin-left:auto;font-size:12px;color:var(--gray)">
+                        Mouvements dont la catégorie contient "MISSION"
+                    </span>
+                </div>
+                <div class="scroll-area">
+                    <table class="data">
+                        <thead>
+                            <tr>
+                                <th>DATE</th>
+                                <th>N° TRANSACTION</th>
+                                <th>CATÉGORIE</th>
+                                <th>TYPE</th>
+                                <th>DESCRIPTION</th>
+                                <th style="text-align:right">RECETTES</th>
+                                <th style="text-align:right">DÉPENSES</th>
+                                <th style="text-align:right">FRAIS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="missionTbody"></tbody>
+                    </table>
+                </div>
+                <div style="padding:10px 16px;background:var(--violet-light);
+                            font-size:12px;color:var(--violet-dark);font-weight:600"
+                     id="missionCount">0 ligne(s)</div>
             </div>
         </div>
 
@@ -338,6 +353,77 @@
             <button class="btn btn-gray"
                     onclick="document.getElementById('userModal').classList.remove('open')">Annuler</button>
             <button class="btn btn-violet" id="btnSaveUser">💾 Enregistrer</button>
+        </div>
+    </div>
+</div>
+
+<!-- EXPORT MODAL -->
+<div class="modal-overlay" id="exportModal">
+    <div class="modal" style="max-width:680px">
+        <div class="modal-header">
+            <h3>📤 Exporter</h3>
+            <button class="modal-close" id="exportModalClose">✕</button>
+        </div>
+
+        <!-- Onglets internes -->
+        <div class="tabs" style="margin:0;padding:8px;background:#F5F3FF">
+            <button class="tab active" data-extab="extabCat">🏷️ Par Catégorie</button>
+            <button class="tab" data-extab="extabMvt">💼 Mouvement de Caisse</button>
+        </div>
+
+        <div class="modal-body">
+
+            <!-- PARTIE 1 : PAR CATÉGORIE -->
+            <div class="tab-panel active" id="extabCat">
+                <div class="form-group">
+                    <label>FILTRE DATE (optionnel)</label>
+                    <div style="display:flex;gap:8px">
+                        <input type="date" id="expCatFrom" class="form-control">
+                        <input type="date" id="expCatTo" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>CHOISIR CATÉGORIES (Ctrl+clic pour plusieurs)</label>
+                    <select id="expCatList" class="form-control" multiple
+                            style="height:160px;padding:6px"></select>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+                    <button class="btn btn-success" data-excat="excel">📗 Excel</button>
+                    <button class="btn btn-blue"    data-excat="word">📘 Word</button>
+                    <button class="btn btn-danger"  data-excat="pdf">📕 PDF</button>
+                </div>
+            </div>
+
+            <!-- PARTIE 2 : MOUVEMENT DE CAISSE -->
+            <div class="tab-panel" id="extabMvt">
+                <div class="form-group">
+                    <label>PÉRIODE</label>
+                    <div style="display:flex;gap:8px">
+                        <input type="date" id="expMvtFrom" class="form-control">
+                        <input type="date" id="expMvtTo" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>TYPE DE MOUVEMENT</label>
+                    <select id="expMvtType" class="form-control">
+                        <option value="all">Tous les mouvements</option>
+                        <option value="Recette">Recettes seulement</option>
+                        <option value="Dépense">Dépenses seulement</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>CATÉGORIE (optionnel)</label>
+                    <select id="expMvtCat" class="form-control">
+                        <option value="">📂 Toutes catégories</option>
+                    </select>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+                    <button class="btn btn-success" data-exmvt="excel">📗 Excel</button>
+                    <button class="btn btn-blue"    data-exmvt="word">📘 Word</button>
+                    <button class="btn btn-danger"  data-exmvt="pdf">📕 PDF</button>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
