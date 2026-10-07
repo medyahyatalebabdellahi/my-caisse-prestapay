@@ -107,12 +107,44 @@ const LocalDB = {
     getMovements(from, to) {
         const d = this._load();
         return d.movements.filter(m => (!from || m.date >= from) && (!to || m.date <= to))
-            .sort((a,b) => a.date.localeCompare(b.date) || a.id - b.id);
+            .sort((a,b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
     },
-    addMovement(m) { const d = this._load(); m.id = Date.now(); d.movements.push(m); this._save(); return m; },
-    updateMovement(id, m) { const d = this._load(); const i = d.movements.findIndex(x => x.id === id); if (i >= 0) { d.movements[i] = { ...d.movements[i], ...m }; this._save(); } },
-    deleteMovement(id) { const d = this._load(); d.movements = d.movements.filter(m => m.id !== id); this._save(); },
-    deleteAllMovements() { const d = this._load(); d.movements = []; this._save(); }
+    addMovement(m) {
+        const d = this._load();
+        // ✅ Unique ID: timestamp + random (prevents duplicates)
+        m.id = Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        d.movements.push(m);
+        this._save();
+        return m;
+    },
+    updateMovement(id, m) {
+        const d = this._load();
+        const i = d.movements.findIndex(x => String(x.id) === String(id));
+        if (i >= 0) { d.movements[i] = { ...d.movements[i], ...m, id: d.movements[i].id }; this._save(); }
+    },
+    deleteMovement(id) {
+        const d = this._load();
+        d.movements = d.movements.filter(m => String(m.id) !== String(id));
+        this._save();
+    },
+    deleteAllMovements() { const d = this._load(); d.movements = []; this._save(); },
+    /* ✅ Fix duplicate IDs (one-time migration) */
+    migrateIds() {
+        const d = this._load();
+        const seen = new Set();
+        let changed = 0;
+        d.movements.forEach((m, i) => {
+            const idStr = String(m.id);
+            if (!idStr || idStr === 'undefined' || idStr === 'null' || seen.has(idStr)) {
+                m.id = Date.now() + '_' + i + '_' + Math.random().toString(36).slice(2, 8);
+                changed++;
+            } else {
+                seen.add(idStr);
+            }
+        });
+        if (changed > 0) this._save();
+        return changed;
+    }
 };
 
 function localApi(action, payload) {
@@ -236,10 +268,12 @@ async function refreshMovements() {
             .forEach(m => running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0));
     }
 
-    list.forEach(m => {
+    list.forEach((m) => {
         running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
         const tr = document.createElement('tr');
         tr.className = m.recette > 0 ? 'recette' : 'depense';
+        // ✅ Store the FULL movement as JSON in data-mvt (100% reliable)
+        const mvtJson = encodeURIComponent(JSON.stringify(m));
         tr.innerHTML = `
             <td>${fmtDate(m.date)}</td>
             <td>${m.transaction_no || ''}</td>
@@ -251,8 +285,8 @@ async function refreshMovements() {
             <td class="amt-frais">${m.frais ? fmtMoney(m.frais) : ''}</td>
             <td class="amt-solde">${fmtMoney(running)}</td>
             <td>
-                ${hasPerm('edit') ? `<button class="btn btn-gray" data-edit="${m.id}">✏️</button>` : ''}
-                ${hasPerm('delete') ? `<button class="btn btn-danger" data-del="${m.id}">🗑</button>` : ''}
+                ${hasPerm('edit') ? `<button class="btn btn-gray" data-edit="${m.id}" data-mvt="${mvtJson}">✏️</button>` : ''}
+                ${hasPerm('delete') ? `<button class="btn btn-danger" data-del="${m.id}" data-mvt="${mvtJson}">🗑</button>` : ''}
             </td>`;
         tbody.appendChild(tr);
     });
@@ -309,21 +343,37 @@ async function saveMovement() {
     clearForm(); refreshMovements();
 }
 
-/* ✅ Edit Movement — Toggle: click again on same ✏️ to cancel */
-async function editMovement(id) {
+/* ✅ Edit Movement — Uses the exact movement data from the clicked button */
+async function editMovement(id, mvtJson) {
+    // Toggle: click again on same ✏️ to cancel
     if (CURRENT_EDIT_ID === id) {
         clearForm();
         toast('❌ Modification annulée', 'warn');
         return;
     }
 
-    const res = await apiCall('getMovements');
-    const m = (res.movements || []).find(x => String(x.id) === String(id));
-    if (!m) return;
+    // ✅ Get movement directly from button data (100% accurate)
+    let m = null;
+    if (mvtJson) {
+        try {
+            m = JSON.parse(decodeURIComponent(mvtJson));
+        } catch (e) {
+            console.warn('Failed to parse mvt JSON:', e);
+        }
+    }
+    // Fallback: search by id
+    if (!m) {
+        const res = await apiCall('getMovements');
+        m = (res.movements || []).find(x => String(x.id) === String(id));
+    }
+    if (!m) {
+        toast('⚠️ Mouvement introuvable', 'error');
+        return;
+    }
 
     clearForm();
 
-    CURRENT_EDIT_ID = id;
+    CURRENT_EDIT_ID = m.id;
     document.getElementById('inpDate').value = m.date;
     document.getElementById('inpTransaction').value = m.transaction_no || '';
     document.getElementById('inpDescription').value = m.description || '';
@@ -341,13 +391,14 @@ async function editMovement(id) {
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
 
+    // Switch to orange edit mode
     document.getElementById('formTitle').textContent = '✏️ Modifier le Mouvement';
     document.getElementById('formTitle').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     document.getElementById('formTitle').style.color = '#fff';
     document.getElementById('btnSave').textContent = '💾 Enregistrer les Modifications';
     document.getElementById('btnSave').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast('✏️ Mode Modification activé', 'warn');
+    toast('✏️ Mode Modification activé — Cliquez à nouveau sur ✏️ pour annuler', 'warn');
 }
 
 /* =========================================================
@@ -630,7 +681,7 @@ async function saveClosingAsOpening() {
 }
 
 /* =========================================================
-   EXPORT MODAL — 2 sections (Category / Cash Movement)
+   EXPORT MODAL
    ========================================================= */
 function openExportModal() {
     const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
@@ -1296,9 +1347,9 @@ async function exportBackupJSON() {
    BIND ALL EVENTS
    ========================================================= */
 function bindAllEvents() {
-    // Tabs
+    // Main tabs
     document.querySelectorAll('.tab').forEach(tab => {
-        if (!tab.dataset.tab) return; // skip export internal tabs
+        if (!tab.dataset.tab) return;
         tab.addEventListener('click', () => {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -1326,17 +1377,41 @@ function bindAllEvents() {
         if (e.target.files[0]) handleUpload(e.target.files[0]);
     });
 
+    // ✅ Movement actions (edit/delete) — uses data-mvt for exact match
     document.getElementById('movTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.edit;
+        const mvtJson = e.target.dataset.mvt;
         const delId = e.target.dataset.del;
-        if (editId) await editMovement(Number(editId));
+
+        if (editId) {
+            await editMovement(editId, mvtJson);
+        }
         if (delId && confirm('Supprimer ce mouvement ?')) {
-            await apiCall('deleteMovement', { id: Number(delId) });
+            let mvt = null;
+            if (mvtJson) {
+                try { mvt = JSON.parse(decodeURIComponent(mvtJson)); } catch (err) {}
+            }
+            if (CONFIG.LOCAL_MODE && mvt) {
+                const all = LocalDB.getMovements();
+                const found = all.find(x =>
+                    String(x.id) === String(delId) &&
+                    String(x.transaction_no) === String(mvt.transaction_no) &&
+                    String(x.date) === String(mvt.date)
+                );
+                if (found) {
+                    LocalDB.deleteMovement(found.id);
+                } else {
+                    await apiCall('deleteMovement', { id: delId });
+                }
+            } else {
+                await apiCall('deleteMovement', { id: delId });
+            }
             toast('✅ Supprimé', 'success');
             refreshMovements();
         }
     });
 
+    // Users
     document.getElementById('usersTbody')?.addEventListener('click', async (e) => {
         const editId = e.target.dataset.editUser;
         const delId = e.target.dataset.delUser;
@@ -1376,12 +1451,12 @@ function bindAllEvents() {
     document.getElementById('btnRecalcBalance')?.addEventListener('click', recalcBalanceGlobal);
     document.getElementById('btnExportBackup')?.addEventListener('click', exportBackupJSON);
 
-    // ✅ Export modal
+    // Export modal
     document.getElementById('btnOpenExportModal')?.addEventListener('click', openExportModal);
     document.getElementById('exportModalClose')?.addEventListener('click', () =>
         document.getElementById('exportModal').classList.remove('open'));
 
-    // ✅ Export internal tabs
+    // Export internal tabs
     document.querySelectorAll('[data-extab]').forEach(tab => {
         tab.addEventListener('click', () => {
             document.querySelectorAll('[data-extab]').forEach(t => t.classList.remove('active'));
@@ -1392,7 +1467,7 @@ function bindAllEvents() {
         });
     });
 
-    // ✅ Export by category
+    // Export by category
     document.querySelectorAll('[data-excat]').forEach(b => b.addEventListener('click', async () => {
         const from = document.getElementById('expCatFrom').value || null;
         const to = document.getElementById('expCatTo').value || null;
@@ -1412,7 +1487,7 @@ function bindAllEvents() {
         document.getElementById('exportModal').classList.remove('open');
     }));
 
-    // ✅ Export by movement
+    // Export by movement
     document.querySelectorAll('[data-exmvt]').forEach(b => b.addEventListener('click', async () => {
         const from = document.getElementById('expMvtFrom').value || null;
         const to = document.getElementById('expMvtTo').value || null;
@@ -1450,6 +1525,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!SESSION) return;
     renderHeader();
     clearForm();
+
+    // ✅ Fix duplicate IDs (one-time migration)
+    if (CONFIG.LOCAL_MODE) {
+        try {
+            const migrated = LocalDB.migrateIds();
+            if (migrated > 0) {
+                console.log('✅ Fixed ' + migrated + ' duplicate ID(s)');
+                toast('🔧 ' + migrated + ' ID corrigé(s)', 'success');
+            }
+        } catch (e) { console.error('ID fix error:', e); }
+    }
 
     const firstDay = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     document.getElementById('filterFrom').value = firstDay.toISOString().slice(0,10);
