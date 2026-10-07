@@ -309,10 +309,22 @@ async function saveMovement() {
     clearForm(); refreshMovements();
 }
 
+/* ✅ Edit Movement — Toggle: click again on same ✏️ to cancel */
 async function editMovement(id) {
+    // If already editing this movement → cancel edit mode
+    if (CURRENT_EDIT_ID === id) {
+        clearForm();
+        toast('❌ Modification annulée', 'warn');
+        return;
+    }
+
     const res = await apiCall('getMovements');
     const m = (res.movements || []).find(x => String(x.id) === String(id));
     if (!m) return;
+
+    // Reset form BEFORE filling with new values (prevents mixing)
+    clearForm();
+
     CURRENT_EDIT_ID = id;
     document.getElementById('inpDate').value = m.date;
     document.getElementById('inpTransaction').value = m.transaction_no || '';
@@ -331,13 +343,14 @@ async function editMovement(id) {
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
 
+    // Switch to orange edit mode
     document.getElementById('formTitle').textContent = '✏️ Modifier le Mouvement';
     document.getElementById('formTitle').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     document.getElementById('formTitle').style.color = '#fff';
     document.getElementById('btnSave').textContent = '💾 Enregistrer les Modifications';
     document.getElementById('btnSave').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    toast('✏️ Mode Modification activé', 'warn');
+    toast('✏️ Mode Modification activé — Cliquez à nouveau sur ✏️ pour annuler', 'warn');
 }
 
 /* =========================================================
@@ -373,16 +386,18 @@ async function refreshManageTables() {
         repSel.appendChild(opt);
     });
 
-    // Fill export category filter
+    // ✅ Fill export category filter (single-select with "All" option)
     const expSel = document.getElementById('exportCategoryFilter');
     if (expSel) {
-        expSel.innerHTML = '';
+        const currentVal = expSel.value;
+        expSel.innerHTML = '<option value="">📂 Toutes catégories</option>';
         cats.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.name;
             opt.textContent = c.name + ' (' + c.kind + ')';
             expSel.appendChild(opt);
         });
+        expSel.value = currentVal;
     }
 }
 
@@ -640,12 +655,14 @@ async function exportData(format) {
     const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
     let movements = res.movements || [];
 
+    // ✅ Filter by single selected category (empty = all)
     const expCatSel = document.getElementById('exportCategoryFilter');
-    const selectedCats = expCatSel ? Array.from(expCatSel.selectedOptions).map(o => o.value) : [];
-    if (selectedCats.length > 0) {
-        movements = movements.filter(m => selectedCats.includes(String(m.category).toUpperCase()));
+    const selectedCat = expCatSel ? expCatSel.value : '';
+    if (selectedCat) {
+        movements = movements.filter(m => String(m.category).toUpperCase() === selectedCat.toUpperCase());
     }
 
+    // Filter by movement type
     const typeFilter = document.getElementById('exportTypeFilter')?.value || 'all';
     if (typeFilter === 'Recette') movements = movements.filter(m => Number(m.recette) > 0);
     if (typeFilter === 'Dépense') movements = movements.filter(m => Number(m.depense) > 0);
