@@ -71,7 +71,7 @@ async function apiCall(action, payload = {}) {
 }
 
 /* =========================================================
-   LOCAL DB (fallback)
+   LOCAL DB
    ========================================================= */
 const LocalDB = {
     _key: 'mycaisse_data_v3', _data: null,
@@ -121,10 +121,10 @@ function localApi(action, payload) {
             const u = CONFIG.LOCAL_USERS[payload.username?.toUpperCase()];
             if (u && u.password === payload.password)
                 return { success: true, user: { username: payload.username.toUpperCase(), role: u.role, permissions: u.permissions }, token: 'local_' + Date.now() };
-            return { success: false, error: 'Invalid credentials' };
+            return { success: false, error: 'Mot de passe incorrect' };
         }
         case 'getCategories': return { success: true, categories: LocalDB.getCategories() };
-        case 'addCategory': { const c = LocalDB.addCategory(payload.name, payload.kind); return c ? { success: true, id: c.id } : { success: false, error: 'Exists' }; }
+        case 'addCategory': { const c = LocalDB.addCategory(payload.name, payload.kind); return c ? { success: true, id: c.id } : { success: false, error: 'Existe déjà' }; }
         case 'deleteCategory': LocalDB.deleteCategory(payload.id); return { success: true };
         case 'getTypes': return { success: true, types: LocalDB.getTypes(payload.category_id) };
         case 'addType': { const t = LocalDB.addType(payload.category_id, payload.name); return { success: true, id: t.id }; }
@@ -137,7 +137,10 @@ function localApi(action, payload) {
         case 'getSetting': return { success: true, value: getOpeningBalance() };
         case 'setSetting': setOpeningBalance(payload.value); return { success: true };
         case 'getUsers': return { success: true, users: [] };
-        default: return { success: false, error: 'Unknown action' };
+        case 'addUser': return { success: true, info: 'Mode local : éditez config.js' };
+        case 'updateUser': return { success: true, info: 'Mode local : éditez config.js' };
+        case 'deleteUser': return { success: true, info: 'Mode local : éditez config.js' };
+        default: return { success: false, error: 'Unknown action: ' + action };
     }
 }
 
@@ -264,8 +267,13 @@ function clearForm() {
     document.getElementById('inpAmount').value = '';
     document.getElementById('inpFrais').value = '0';
     document.getElementById('inpDate').value = todayISO();
-    document.getElementById('formTitle').textContent = 'Nouveau Mouvement';
-    document.getElementById('btnSave').textContent = '➕ Ajouter';
+    const title = document.getElementById('formTitle');
+    title.textContent = 'Nouveau Mouvement';
+    title.style.background = '';
+    title.style.color = '';
+    const btn = document.getElementById('btnSave');
+    btn.textContent = '➕ Ajouter';
+    btn.style.background = '';
 }
 
 async function saveMovement() {
@@ -289,13 +297,14 @@ async function saveMovement() {
         depense: type === 'Dépense' ? amount : 0,
         frais
     };
+
     if (CURRENT_EDIT_ID) {
         mvt.id = CURRENT_EDIT_ID;
         await apiCall('updateMovement', mvt);
-        toast('✅ Mouvement modifié.', 'success');
+        toast('✅ Mouvement MODIFIÉ avec succès', 'success');
     } else {
         await apiCall('addMovement', mvt);
-        toast('✅ Mouvement ajouté.', 'success');
+        toast('✅ Mouvement AJOUTÉ avec succès', 'success');
     }
     clearForm(); refreshMovements();
 }
@@ -321,9 +330,14 @@ async function editMovement(id) {
     const typeSel = document.getElementById('selType');
     for (let i = 0; i < typeSel.options.length; i++)
         if (typeSel.options[i].dataset.name === m.type) typeSel.selectedIndex = i;
-    document.getElementById('formTitle').textContent = 'Modifier le Mouvement';
-    document.getElementById('btnSave').textContent = '💾 Enregistrer';
+
+    document.getElementById('formTitle').textContent = '✏️ Modifier le Mouvement';
+    document.getElementById('formTitle').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
+    document.getElementById('formTitle').style.color = '#fff';
+    document.getElementById('btnSave').textContent = '💾 Enregistrer les Modifications';
+    document.getElementById('btnSave').style.background = 'linear-gradient(135deg,#F59E0B,#D97706)';
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    toast('✏️ Mode Modification activé', 'warn');
 }
 
 /* =========================================================
@@ -358,6 +372,18 @@ async function refreshManageTables() {
         opt.value = c.name; opt.textContent = c.name;
         repSel.appendChild(opt);
     });
+
+    // Fill export category filter
+    const expSel = document.getElementById('exportCategoryFilter');
+    if (expSel) {
+        expSel.innerHTML = '';
+        cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.name;
+            opt.textContent = c.name + ' (' + c.kind + ')';
+            expSel.appendChild(opt);
+        });
+    }
 }
 
 async function refreshTypesTable() {
@@ -585,6 +611,12 @@ async function exportReportPDF() {
         headStyles: { fillColor: [124,58,237], textColor: 255, fontStyle:'bold' },
         theme: 'grid'
     });
+
+    const finalY = doc.lastAutoTable.finalY + 15;
+    doc.setFontSize(10); doc.setTextColor(30,58,138);
+    doc.setFont(undefined,'bold');
+    doc.text('Préparé par : YAHYA TALEB ABDELLAHI', 15, finalY);
+
     doc.save(`Rapport_${m}_${y}.pdf`);
     toast('✅ PDF exporté', 'success');
 }
@@ -606,7 +638,22 @@ async function exportData(format) {
     const isoFrom = document.getElementById('filterFrom').value || null;
     const isoTo   = document.getElementById('filterTo').value || null;
     const res = await apiCall('getMovements', { from: isoFrom, to: isoTo });
-    const movements = res.movements || [];
+    let movements = res.movements || [];
+
+    const expCatSel = document.getElementById('exportCategoryFilter');
+    const selectedCats = expCatSel ? Array.from(expCatSel.selectedOptions).map(o => o.value) : [];
+    if (selectedCats.length > 0) {
+        movements = movements.filter(m => selectedCats.includes(String(m.category).toUpperCase()));
+    }
+
+    const typeFilter = document.getElementById('exportTypeFilter')?.value || 'all';
+    if (typeFilter === 'Recette') movements = movements.filter(m => Number(m.recette) > 0);
+    if (typeFilter === 'Dépense') movements = movements.filter(m => Number(m.depense) > 0);
+
+    if (!movements.length) {
+        toast('⚠️ Aucun mouvement à exporter avec ces filtres', 'warn');
+        return;
+    }
 
     let opening = getOpeningBalance();
     if (isoFrom) {
@@ -621,90 +668,190 @@ async function exportData(format) {
     const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
     const fromFR = isoFrom ? isoToFR(isoFrom) : 'N/A';
     const toFR = isoTo ? isoToFR(isoTo) : 'N/A';
+    const now = new Date();
+    const nowFR = String(now.getDate()).padStart(2,'0') + '/' +
+                  String(now.getMonth()+1).padStart(2,'0') + '/' +
+                  now.getFullYear() + ' à ' +
+                  String(now.getHours()).padStart(2,'0') + ':' +
+                  String(now.getMinutes()).padStart(2,'0');
 
-    if (format === 'excel') {
-        const data = [
-            ['MY CAISSE PRESTAPAY'], ['Période', `${fromFR} → ${toFR}`],
-            ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
-            [], ['Date','N° Transaction','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']
-        ];
-        let running = opening;
-        movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
-            data.push([fmtDate(m.date), m.transaction_no||'', m.category||'', m.type||'', m.description||'', m.recette||0, m.depense||0, m.frais||0, running]);
-        });
-        const ws = XLSX.utils.aoa_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Mouvements');
-        XLSX.writeFile(wb, `MyCaisse_${stamp}.xlsx`);
-        toast('✅ Excel exporté', 'success');
-    } else if (format === 'csv') {
-        let csv = 'Date,N° Transaction,Catégorie,Type,Description,Recettes,Dépenses,Frais,Solde\n';
-        let running = opening;
-        movements.forEach(m => {
-            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
-            csv += [fmtDate(m.date), m.transaction_no||'', m.category||'', m.type||'', m.description||'', m.recette||0, m.depense||0, m.frais||0, running]
-                    .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
-        });
-        downloadBlob(csv, `MyCaisse_${stamp}.csv`, 'text/csv;charset=utf-8');
-        toast('✅ CSV exporté', 'success');
-    } else if (format === 'pdf') {
+    // ============ PDF ============
+    if (format === 'pdf') {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
         doc.setFillColor(124, 58, 237);
-        doc.rect(0, 0, 297, 22, 'F');
+        doc.rect(0, 0, 297, 32, 'F');
         doc.setTextColor(255,255,255);
-        doc.setFontSize(16); doc.setFont(undefined,'bold');
-        doc.text('MY CAISSE PRESTAPAY', 148, 12, { align:'center' });
+        doc.setFontSize(20); doc.setFont(undefined,'bold');
+        doc.text('MY CAISSE PRESTAPAY', 148, 13, { align:'center' });
+        doc.setFontSize(13);
+        doc.text('FICHE DES DÉPENSES PRESTAPAY', 148, 22, { align:'center' });
         doc.setFontSize(9); doc.setFont(undefined,'normal');
-        doc.text(`Du ${fromFR} au ${toFR}`, 148, 18, { align:'center' });
+        doc.text(`Période : ${fromFR} → ${toFR}`, 148, 28, { align:'center' });
+
         doc.setTextColor(30,58,138); doc.setFontSize(10);
-        doc.text(`Solde début: ${fmtMoney(opening)}`, 15, 30);
-        doc.text(`Recettes: ${fmtMoney(tRec)}`, 75, 30);
-        doc.text(`Dépenses: ${fmtMoney(tDep)}`, 135, 30);
-        doc.text(`Frais: ${fmtMoney(tFrais)}`, 190, 30);
-        doc.text(`Solde fin: ${fmtMoney(finalBal)}`, 245, 30);
+        doc.setFont(undefined,'bold');
+        doc.text(`Solde début: ${fmtMoney(opening)}`, 15, 42);
+        doc.text(`Recettes: ${fmtMoney(tRec)}`, 80, 42);
+        doc.text(`Dépenses: ${fmtMoney(tDep)}`, 145, 42);
+        doc.text(`Frais: ${fmtMoney(tFrais)}`, 200, 42);
+        doc.text(`Solde fin: ${fmtMoney(finalBal)}`, 250, 42);
+
         let running = opening;
         doc.autoTable({
-            startY: 36,
-            head: [['Date','N°','Catégorie','Type','Description','Recettes','Dépenses','Frais','Solde']],
+            startY: 48,
+            head: [['Date','N°','Type','Catégorie','Type mvt','Description','Recettes','Dépenses','Frais','Solde']],
             body: movements.map(m => {
                 running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
-                return [fmtDate(m.date), m.transaction_no||'', m.category||'', m.type||'', m.description||'',
-                        m.recette?fmtMoney(m.recette):'', m.depense?fmtMoney(m.depense):'',
-                        m.frais?fmtMoney(m.frais):'', fmtMoney(running)];
+                const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
+                return [
+                    fmtDate(m.date), m.transaction_no||'', m.type || '—',
+                    m.category || '', typeMvt, m.description||'',
+                    m.recette?fmtMoney(m.recette):'', m.depense?fmtMoney(m.depense):'',
+                    m.frais?fmtMoney(m.frais):'', fmtMoney(running)
+                ];
             }),
             styles: { fontSize: 7, cellPadding: 2 },
-            headStyles: { fillColor: [124,58,237], textColor: 255 }
+            headStyles: { fillColor: [124,58,237], textColor: 255, fontStyle:'bold' },
+            bodyStyles: { textColor: [31,27,46] },
+            alternateRowStyles: { fillColor: [245,243,255] },
+            columnStyles: {
+                6: { halign:'right', textColor:[5,150,105] },
+                7: { halign:'right', textColor:[220,38,38] },
+                8: { halign:'right', textColor:[217,119,6] },
+                9: { halign:'right', fontStyle:'bold', textColor:[30,58,138] }
+            }
         });
-        doc.save(`MyCaisse_${stamp}.pdf`);
+
+        const finalY = doc.lastAutoTable.finalY + 15;
+        doc.setFontSize(10); doc.setTextColor(30,58,138);
+        doc.setFont(undefined,'bold');
+        doc.text('Préparé par : YAHYA TALEB ABDELLAHI', 15, finalY);
+        doc.setFont(undefined,'normal'); doc.setFontSize(9);
+        doc.setTextColor(107,114,128);
+        doc.text(`Généré le : ${nowFR}`, 15, finalY + 6);
+        doc.text('My Caisse Prestapay — Version 2.4.0', 297 - 15, finalY + 6, { align:'right' });
+
+        doc.save(`Fiche_Depenses_${stamp}.pdf`);
         toast('✅ PDF exporté', 'success');
+
+    // ============ WORD ============
     } else if (format === 'word') {
         let rows = '', running = opening;
         movements.forEach(m => {
             running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
-            rows += `<tr><td>${fmtDate(m.date)}</td><td>${m.transaction_no||''}</td>
-                <td>${m.category||''}</td><td>${m.type||''}</td><td>${m.description||''}</td>
+            const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
+            rows += `<tr>
+                <td>${fmtDate(m.date)}</td>
+                <td>${m.transaction_no||''}</td>
+                <td>${typeMvt}</td>
+                <td>${m.category||''}</td>
+                <td>${m.type||'—'}</td>
+                <td>${m.description||''}</td>
                 <td style="text-align:right;color:#059669">${m.recette?fmtMoney(m.recette):''}</td>
                 <td style="text-align:right;color:#DC2626">${m.depense?fmtMoney(m.depense):''}</td>
                 <td style="text-align:right;color:#D97706">${m.frais?fmtMoney(m.frais):''}</td>
-                <td style="text-align:right;font-weight:bold">${fmtMoney(running)}</td></tr>`;
+                <td style="text-align:right;font-weight:bold">${fmtMoney(running)}</td>
+            </tr>`;
         });
-        const html = `<html><head><meta charset="utf-8"><style>
-            body { font-family: Arial; } h1 { color:#7C3AED; text-align:center; }
-            table { width:100%; border-collapse:collapse; font-size:10px; }
-            th { background:#7C3AED; color:#fff; padding:6px; }
-            td { border:1px solid #ccc; padding:4px; }</style></head><body>
+
+        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+                            xmlns:w="urn:schemas-microsoft-com:office:word"
+                            xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8">
+        <style>
+            body { font-family: Arial; margin: 20px; }
+            .header { background:#7C3AED; color:#fff; padding:15px; text-align:center; }
+            .header h1 { margin:0; font-size:22px; }
+            .header h2 { margin:8px 0 0; font-size:14px; font-weight:normal; }
+            .header p { margin:5px 0 0; font-size:11px; }
+            .summary { background:#F5F3FF; padding:12px; margin:15px 0; border-left:4px solid #7C3AED; }
+            .summary span { margin-right:20px; font-weight:bold; }
+            table { width:100%; border-collapse:collapse; font-size:10px; margin-top:10px; }
+            th { background:#7C3AED; color:#fff; padding:8px 4px; text-align:left; }
+            td { border:1px solid #ddd; padding:5px 4px; }
+            tr:nth-child(even) { background:#FAF5FF; }
+            .footer { margin-top:30px; padding-top:15px; border-top:2px solid #7C3AED; font-size:11px; }
+            .footer strong { color:#7C3AED; }
+        </style></head><body>
+
+        <div class="header">
             <h1>MY CAISSE PRESTAPAY</h1>
-            <p style="text-align:center">Du ${fromFR} au ${toFR}</p>
-            <p><b>Solde début:</b> ${fmtMoney(opening)} | <b>Recettes:</b> ${fmtMoney(tRec)} |
-               <b>Dépenses:</b> ${fmtMoney(tDep)} | <b>Frais:</b> ${fmtMoney(tFrais)} |
-               <b>Solde fin:</b> ${fmtMoney(finalBal)}</p>
-            <table><thead><tr><th>Date</th><th>N°</th><th>Catégorie</th><th>Type</th>
-            <th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th></tr></thead>
-            <tbody>${rows}</tbody></table></body></html>`;
-        downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }), `MyCaisse_${stamp}.doc`);
+            <h2>FICHE DES DÉPENSES PRESTAPAY</h2>
+            <p>Période : ${fromFR} → ${toFR}</p>
+        </div>
+
+        <div class="summary">
+            <span>Solde début : ${fmtMoney(opening)}</span>
+            <span>Recettes : ${fmtMoney(tRec)}</span>
+            <span>Dépenses : ${fmtMoney(tDep)}</span>
+            <span>Frais : ${fmtMoney(tFrais)}</span>
+            <span style="color:#7C3AED">Solde fin : ${fmtMoney(finalBal)}</span>
+        </div>
+
+        <table>
+            <thead><tr>
+                <th>Date</th><th>N°</th><th>Type</th><th>Catégorie</th>
+                <th>Type mvt</th><th>Description</th><th>Recettes</th><th>Dépenses</th><th>Frais</th><th>Solde</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+
+        <div class="footer">
+            <p><strong>Préparé par :</strong> YAHYA TALEB ABDELLAHI</p>
+            <p style="color:#6B7280;font-size:10px">
+                Généré le : ${nowFR} — My Caisse Prestapay v2.4.0
+            </p>
+        </div>
+
+        </body></html>`;
+
+        downloadBlob(new Blob(['\ufeff', html], { type: 'application/msword' }),
+                     `Fiche_Depenses_${stamp}.doc`);
         toast('✅ Word exporté', 'success');
+
+    // ============ EXCEL ============
+    } else if (format === 'excel') {
+        const data = [
+            ['MY CAISSE PRESTAPAY'],
+            ['FICHE DES DÉPENSES PRESTAPAY'],
+            ['Période', `${fromFR} → ${toFR}`],
+            [],
+            ['Solde début', opening, 'Recettes', tRec, 'Dépenses', tDep, 'Frais', tFrais, 'Solde fin', finalBal],
+            [],
+            ['Date','N°','Type','Catégorie','Type mvt','Description','Recettes','Dépenses','Frais','Solde']
+        ];
+        let running = opening;
+        movements.forEach(m => {
+            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
+            const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
+            data.push([fmtDate(m.date), m.transaction_no||'', m.type||'—', m.category||'',
+                       typeMvt, m.description||'', m.recette||0, m.depense||0, m.frais||0, running]);
+        });
+        data.push([]);
+        data.push(['', '', '', '', '', 'Préparé par : YAHYA TALEB ABDELLAHI']);
+        data.push(['', '', '', '', '', 'Généré le : ' + nowFR]);
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Fiche Depenses');
+        XLSX.writeFile(wb, `Fiche_Depenses_${stamp}.xlsx`);
+        toast('✅ Excel exporté', 'success');
+
+    // ============ CSV ============
+    } else if (format === 'csv') {
+        let csv = 'Date,N°,Type,Catégorie,Type mvt,Description,Recettes,Dépenses,Frais,Solde\n';
+        let running = opening;
+        movements.forEach(m => {
+            running += Number(m.recette||0) - Number(m.depense||0) - Number(m.frais||0);
+            const typeMvt = m.recette > 0 ? 'RECETTE' : 'DÉPENSE';
+            csv += [fmtDate(m.date), m.transaction_no||'', m.type||'—', m.category||'', typeMvt,
+                    m.description||'', m.recette||0, m.depense||0, m.frais||0, running]
+                    .map(v => `"${String(v).replace(/"/g,'""')}"`).join(',') + '\n';
+        });
+        csv += `\n"Préparé par : YAHYA TALEB ABDELLAHI"\n"Généré le : ${nowFR}"\n`;
+        downloadBlob(csv, `Fiche_Depenses_${stamp}.csv`, 'text/csv;charset=utf-8');
+        toast('✅ CSV exporté', 'success');
     }
 }
 
@@ -717,7 +864,7 @@ function downloadBlob(data, filename, mime) {
 }
 
 /* =========================================================
-   IMPORT — FILE HANDLER
+   IMPORT
    ========================================================= */
 function handleUpload(file) {
     if (!file) return;
@@ -741,9 +888,6 @@ function handleUpload(file) {
     } else toast('⚠️ CSV, JSON, Excel, PDF seulement', 'warn');
 }
 
-/* =========================================================
-   IMPORT CSV
-   ========================================================= */
 async function importCSV(text) {
     const lines = text.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) { toast('⚠️ CSV vide', 'warn'); return; }
@@ -793,9 +937,6 @@ async function importCSV(text) {
     refreshMovements(); refreshBanner();
 }
 
-/* =========================================================
-   IMPORT EXCEL
-   ========================================================= */
 async function importExcel(arrayBuffer) {
     try {
         if (!window.XLSX) { toast('❌ Excel library not loaded', 'error'); return; }
@@ -853,80 +994,42 @@ async function importExcel(arrayBuffer) {
     }
 }
 
-/* =========================================================
-   IMPORT PDF — Version finale (sans test HEAD)
-   ========================================================= */
 async function importPDF(arrayBuffer) {
-    if (!window.pdfjsLib) {
-        toast('❌ PDF.js non chargé. Vérifiez votre connexion.', 'error');
-        console.error('pdfjsLib introuvable');
-        return;
-    }
-
+    if (!window.pdfjsLib) { toast('❌ PDF.js non chargé', 'error'); return; }
     const workerCDNs = [
         'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
         'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
         'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
     ];
-
-    let success = false;
-    let lastError = null;
-
+    let success = false, lastError = null;
     for (const url of workerCDNs) {
         try {
             console.log('🔄 Trying PDF worker:', url);
             pdfjsLib.GlobalWorkerOptions.workerSrc = url;
-
-            const loadingTask = pdfjsLib.getDocument({
-                data: arrayBuffer,
-                useSystemFonts: true,
-                disableAutoFetch: true,
-                disableStream: true
-            });
-            const pdf = await loadingTask.promise;
-
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer, useSystemFonts: true, disableAutoFetch: true, disableStream: true }).promise;
             console.log('✅ PDF loaded, pages:', pdf.numPages);
             toast(`📄 Lecture PDF (${pdf.numPages} pages)...`, 'warn');
-
             let fullText = '';
             for (let p = 1; p <= pdf.numPages; p++) {
                 const page = await pdf.getPage(p);
                 const content = await page.getTextContent();
                 fullText += content.items.map(i => i.str).join(' ').replace(/\s+/g, ' ') + '\n';
             }
-
             const movements = parsePDFMovements(fullText);
-            if (!movements.length) {
-                toast('⚠️ Aucun mouvement trouvé (PDF scanné ?)', 'warn');
-                return;
-            }
-
+            if (!movements.length) { toast('⚠️ Aucun mouvement trouvé', 'warn'); return; }
             let imp = 0;
             for (const m of movements) {
                 const res = await apiCall('addMovement', m);
                 if (res && res.success) imp++;
             }
             toast(`✅ ${imp} importé(s) du PDF`, 'success');
-            refreshMovements();
-            refreshBanner();
-            success = true;
-            break;
-
-        } catch (err) {
-            console.warn('❌ Worker failed:', url, err.message);
-            lastError = err;
-        }
+            refreshMovements(); refreshBanner();
+            success = true; break;
+        } catch (err) { console.warn('❌ Worker failed:', err.message); lastError = err; }
     }
-
-    if (!success) {
-        console.error('All PDF workers failed:', lastError);
-        toast('❌ Tous les CDN PDF ont échoué. Essayez CSV/Excel.', 'error');
-    }
+    if (!success) { toast('❌ Tous les CDN PDF ont échoué', 'error'); }
 }
 
-/* =========================================================
-   IMPORT JSON
-   ========================================================= */
 async function importJSON(text) {
     const data = JSON.parse(text);
     if (Array.isArray(data)) {
@@ -1036,6 +1139,25 @@ function parseAmount(v) {
 async function refreshUsersTable() {
     const tbody = document.getElementById('usersTbody');
     if (!tbody) return;
+
+    if (CONFIG.LOCAL_MODE) {
+        tbody.innerHTML = '';
+        let id = 1;
+        Object.keys(CONFIG.LOCAL_USERS).forEach(name => {
+            const u = CONFIG.LOCAL_USERS[name];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${id++}</td>
+                <td><strong>${name}</strong></td>
+                <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role}</span></td>
+                <td>${(u.permissions||[]).join(', ')}</td>
+                <td><span class="badge badge-active">Actif</span></td>
+                <td><em style="color:var(--gray);font-size:11px">Éditer config.js</em></td>`;
+            tbody.appendChild(tr);
+        });
+        return;
+    }
+
     const res = await apiCall('getUsers');
     if (!res.success) { tbody.innerHTML = '<tr><td colspan="6">Admin uniquement</td></tr>'; return; }
     tbody.innerHTML = '';
@@ -1056,6 +1178,10 @@ async function refreshUsersTable() {
 }
 
 function openUserModal(user) {
+    if (CONFIG.LOCAL_MODE) {
+        toast('ℹ️ Mode local : éditez config.js pour ajouter/modifier', 'warn');
+        return;
+    }
     const isNew = !user;
     user = user || { username:'', password:'', role:'user', permissions:['view'], active:true };
     document.getElementById('userModalTitle').textContent = isNew ? 'Nouvel Utilisateur' : 'Modifier Utilisateur';
@@ -1169,7 +1295,7 @@ async function exportBackupJSON() {
 }
 
 /* =========================================================
-   BIND ALL EVENTS — call BEFORE any await
+   BIND ALL EVENTS
    ========================================================= */
 function bindAllEvents() {
     document.querySelectorAll('.tab').forEach(tab => {
